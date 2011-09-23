@@ -53,7 +53,7 @@ typedef struct
   uint32_t CanIdType : 1;
   uint32_t : 2;
   uint32_t CanIdValue : 29; // msb set means extended
-  EcucIntegerParamDef CanObjectId;
+  Can_HwHandleType CanObjectId;
   EcucEnumerationParamDef CanObjectType;
   CanController *CanControllerRef;
   CanFilterMask *CanFilterMaskRef;
@@ -150,5 +150,5 @@ void Can_MainFunction_Read( void );
 void Can_MainFunction_BusOff( void );
 void Can_MainFunction_Wakeup( void );
 
-void Can_Isr(uint8 controller, uint8 msgBox);
+void Can_Isr(Can_HwHandleType hoh, msgboxP);
 void Can_ErrIsr(uint8 controller);
