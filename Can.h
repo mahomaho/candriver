@@ -50,8 +50,9 @@ typedef enum {
 typedef struct
 {
   Can_Arc_HohType CanHandleType;
-  Can_IdTypeType CanIdType;
-  EcucIntegerParamDef CanIdValue;
+  uint32_t CanIdType : 1;
+  uint32_t : 2;
+  uint32_t CanIdValue : 29; // msb set means extended
   EcucIntegerParamDef CanObjectId;
   EcucEnumerationParamDef CanObjectType;
   CanController *CanControllerRef;
@@ -115,11 +116,10 @@ typedef struct
   CanHardwareObject *CanHardwareObject;
 } CanConfigSet;
 
-typedef struct
+typedef const struct
 {
   CanConfigSet CanConfigSet;
   CanGeneral CanGeneral;
-
 }Can_ConfigType;
 
 typedef struct
@@ -129,13 +129,13 @@ typedef struct
 extern const Can_ConfigType;
 
 void Can_Init( const Can_ConfigType *Config );
-void Can_DeInit(void);
+//void Can_DeInit(void);
 
 #if ( CAN_VERSION_INFO_API == STD_ON )
 #define Can_GetVersionInfo(_vi) STD_GET_VERSION_INFO(_vi,CAN)
 #endif
 
-void Can_InitController( uint8 controller, const Can_ControllerConfigType *config);
+void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigType *config);
 Can_ReturnType Can_SetControllerMode( uint8 Controller, Can_StateTransitionType transition );
 void Can_DisableControllerInterrupts( uint8 controller );
 void Can_EnableControllerInterrupts( uint8 controller );
@@ -149,3 +149,6 @@ void Can_MainFunction_Write( void );
 void Can_MainFunction_Read( void );
 void Can_MainFunction_BusOff( void );
 void Can_MainFunction_Wakeup( void );
+
+void Can_Isr(uint8 controller, uint8 msgBox);
+void Can_ErrIsr(uint8 controller);

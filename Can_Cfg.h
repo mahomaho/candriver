@@ -1,7 +1,13 @@
 
-#define CAN_NUM_CONTROLLERS 6
 #define CAN_NUM_HOH 23
 #define CAN_NUM_BAUDRATES 1
+
+#define CAN_A 0
+#define CAN_C 1
+#define CAN_D 2
+#define CAN_NUM_CONTROLLERS 3
+//#define CAN_B 3
+
 
 /** Enable Development Error Trace. */
 #define CAN_DEV_ERROR_DETECT          STD_ON
