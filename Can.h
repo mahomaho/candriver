@@ -19,6 +19,7 @@ typedef enum {
 
 /** CAN HW object types. */
 typedef enum {
+  CAN_OBJECT_TYPE_NONE,
   CAN_OBJECT_TYPE_RECEIVE,
   CAN_OBJECT_TYPE_TRANSMIT,
 } Can_ObjectTypeType;
@@ -29,33 +30,16 @@ typedef enum {
   CAN_ARC_HANDLE_TYPE_FULL
 } Can_Arc_HohType;
 
-// HTH definitions
-// Due to effiency: Start with index 0 and don't use any holes in the enumeration
-/** Transmit object id:s */
-typedef enum {
-  CAN_HTH_A_1 = 0,
-  CAN_HTH_C_1,
-  NUM_OF_HTHS
-} Can_Arc_HTHType;
-
-// HRH definitions
-// Due to effiency: Start with index 0 and don't use any holes in the enumeration
-/** Receive object id:s */
-typedef enum {
-  CAN_HRH_A_1 = 0,
-  CAN_HRH_C_1,
-  NUM_OF_HRHS
-} Can_Arc_HRHType;
 
 typedef struct
 {
-  Can_Arc_HohType CanHandleType; // basic/full
-  uint32_t CanIdType : 1;
+//  Can_Arc_HohType CanHandleType; // basic/full
+  uint32_t CanIdType : 1; // msb set means extended
   uint32_t : 2;
-  uint32_t CanIdValue : 29; // msb set means extended
-  Can_HwHandleType CanObjectId;
-  EcucEnumerationParamDef CanObjectType;
-  CanController *CanControllerRef;
+  uint32_t CanIdValue : 29; // canId value is the pattern for rx
+  Can_HwHandleType CanObjectId; // hoh id, used in rx callback
+  Can_ObjectTypeType CanObjectType; // hth or hrh
+  CanController *CanControllerRef; // ersätt med msgbox ptr?
   CanFilterMask *CanFilterMaskRef;
 } attribute((section=.canpostbuild)) CanHardwareObject;
 
@@ -87,11 +71,11 @@ typedef struct
 
 struct CanControllerBaudrateConfig
 {
-  EcucIntegerParamDef CanControllerBaudRate;
-  EcucIntegerParamDef CanControllerPropSeg;
-  EcucIntegerParamDef CanControllerSeg1;
-  EcucIntegerParamDef CanControllerSeg2;
-  EcucIntegerParamDef CanControllerSyncJumpWidth;
+  uint16 CanControllerBaudRate;
+  uint8 CanControllerPropSeg;
+  uint8 CanControllerSeg1;
+  uint8 CanControllerSeg2;
+  uint8 CanControllerSyncJumpWidth;
 } attribute((section=.canpostbuild));
 
 typedef struct
@@ -99,21 +83,21 @@ typedef struct
 //  EcucEnumerationParamDef CanBusoffProcessing;
 //  EcucBooleanParamDef CanControllerActivation;
   EcucIntegerParamDef CanControllerBaseAddress;
-  EcucIntegerParamDef CanControllerId;
+//  EcucIntegerParamDef CanControllerId;
 //  EcucEnumerationParamDef CanRxProcessing;
 //  EcucEnumerationParamDef CanTxProcessing;
 //  EcucEnumerationParamDef CanWakeupProcessing;
 //  EcucBooleanParamDef CanWakeupSupport;
-//  McuClockReferencePoint *CanCpuClockRef;
+  McuClockReferencePoint *CanCpuClockRef;
 //  EcuMWakeupSource *CanWakeupSourceRef;
-  CanControllerBaudrateConfig *CanControllerBaudrateConfig;
+  CanControllerBaudrateConfig CanControllerBaudrateConfig;
   CanFilterMask *CanFilterMask;
 }CanController;
 
 typedef struct
 {
   CanController CanController[CAN_NUM_CONTROLLERS];
-  CanHardwareObject *CanHardwareObject;
+  CanHardwareObject CanHardwareObject[NUM_OF_HOHS];
 } CanConfigSet;
 
 typedef const struct
@@ -145,10 +129,14 @@ void Can_EnableControllerInterrupts( uint8 controller );
 Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo );
 
 void Can_Cbk_CheckWakeup( uint8 controller );
-void Can_MainFunction_Write( void );
-void Can_MainFunction_Read( void );
 void Can_MainFunction_BusOff( void );
 void Can_MainFunction_Wakeup( void );
+void Can_MainFunction_Mode( void );
 
 void Can_Isr(Can_HwHandleType hoh, msgboxP);
 void Can_ErrIsr(uint8 controller);
+
+void Can_Arc_Write( Can_HwHandleType hth ); // called either from Can_MainFunction_Write or isr
+void Can_Arc_Read( Can_HwHandleType hrh );  // called either from Can_MainFunction_Read or isr
+void Can_Arc_BusOff( uint8 controller );
+void Can_Arc_Wakeup( uint8 controller );
