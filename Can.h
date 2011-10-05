@@ -49,7 +49,7 @@ typedef enum {
 
 typedef struct
 {
-  Can_Arc_HohType CanHandleType;
+  Can_Arc_HohType CanHandleType; // basic/full
   Can_IdTypeType CanIdType;
   EcucIntegerParamDef CanIdValue;
   Can_HwHandleType CanObjectId;
@@ -59,7 +59,7 @@ typedef struct
 } attribute((section=.canpostbuild)) CanHardwareObject;
 
 
-typedef struct
+/*typedef struct
 {
   EcucBooleanParamDef CanDevErrorDetection;
   EcucBooleanParamDef CanHardwareCancellation;
@@ -82,7 +82,7 @@ typedef struct
   EcucBooleanParamDef CanVersionInfoApi;
   OsCounter *CanCounterRef;
   //CanIfPrivateCfg *CanSupportTTCANRef;
-} CanGeneral;
+} CanGeneral;*/
 
 struct CanControllerBaudrateConfig
 {
@@ -95,18 +95,18 @@ struct CanControllerBaudrateConfig
 
 typedef struct
 {
-  EcucEnumerationParamDef CanBusoffProcessing;
-  EcucBooleanParamDef CanControllerActivation;
+//  EcucEnumerationParamDef CanBusoffProcessing;
+//  EcucBooleanParamDef CanControllerActivation;
   EcucIntegerParamDef CanControllerBaseAddress;
   EcucIntegerParamDef CanControllerId;
-  EcucEnumerationParamDef CanRxProcessing;
-  EcucEnumerationParamDef CanTxProcessing;
-  EcucEnumerationParamDef CanWakeupProcessing;
-  EcucBooleanParamDef CanWakeupSupport;
-  McuClockReferencePoint *CanCpuClockRef;
-  EcuMWakeupSource *CanWakeupSourceRef;
-  CanControllerBaudrateConfig *CanControllerBaudrateConfig[];
-  CanFilterMask *CanFilterMask[];
+//  EcucEnumerationParamDef CanRxProcessing;
+//  EcucEnumerationParamDef CanTxProcessing;
+//  EcucEnumerationParamDef CanWakeupProcessing;
+//  EcucBooleanParamDef CanWakeupSupport;
+//  McuClockReferencePoint *CanCpuClockRef;
+//  EcuMWakeupSource *CanWakeupSourceRef;
+  CanControllerBaudrateConfig *CanControllerBaudrateConfig;
+  CanFilterMask *CanFilterMask;
 }CanController;
 
 typedef struct
@@ -118,7 +118,7 @@ typedef struct
 typedef struct
 {
   CanConfigSet CanConfigSet;
-  CanGeneral CanGeneral;
+//  CanGeneral CanGeneral;
 
 }Can_ConfigType;
 
