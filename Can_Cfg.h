@@ -1,10 +1,13 @@
-
+/// Enable individual mask mode, not supported by MPC5554 and MPC5553, MPC5567?
+#define CAN_ENABLE_INDIVIDUAL_MASK    STD_ON
+/// Enable mixed mode hth's
+#define CAN_ENABLE_MIXED_MODE		  STD_ON
 /** Enable Development Error Trace. */
 #define CAN_DEV_ERROR_DETECT          STD_ON
 /** Build version info API. */
 #define CAN_VERSION_INFO_API          STD_ON
 /** Not supported. */
-#define CAN_MULTIPLEXED_TRANSMISSION  STD_OFF
+#define CAN_MULTIPLEXED_TRANSMISSION  STD_ON
 /** Not supported. */
 #define CAN_WAKEUP_SUPPORT            STD_OFF
 /** Not supported. */
@@ -14,8 +17,6 @@
 
 /** Bus off handling. Polling not supported */
 #define CAN_BUSOFF_PROCESSING         INTERRUPT  // INTERRUPT/POLLING
-/** Not supported. */
-//#define CAN_CONTROLLER_ACTIVATION     OFF
 /** Rx handling. Polling not supported. */
 #define CAN_RX_PROCESSING             INTERRUPT
 /** Tx handling. Polling not supported. */

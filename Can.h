@@ -31,16 +31,35 @@ typedef enum {
 } Can_Arc_HohType;
 
 
-typedef struct
+typedef union
 {
-//  Can_Arc_HohType CanHandleType; // basic/full
-  uint32_t CanIdType : 1; // msb set means extended
-  uint32_t : 2;
-  uint32_t CanIdValue : 29; // canId value is the pattern for rx
-  Can_HwHandleType CanObjectId; // hoh id, used in rx callback
-  Can_ObjectTypeType CanObjectType; // hth or hrh
-  CanController *CanControllerRef; // ersätt med msgbox ptr?
-  CanFilterMask *CanFilterMaskRef;
+	Can_ObjectTypeType CanObjectType; // hth or hrh
+	CanController *CanControllerRef; // ersätt med msgbox ptr?
+	Can_HwHandleType CanObjectId; // hoh id, used in rx callback
+	struct hrh
+	{
+	  Can_ObjectTypeType CanObjectType; // hth or hrh
+	  CanController *CanControllerRef; // ersätt med msgbox ptr?
+	  Can_HwHandleType CanObjectId; // hoh id, used in rx callback
+	  uint32_t CanIdType : 1; // msb set means extended
+	  uint32_t : 2;
+	  uint32_t CanIdValue : 29; // canId value is the pattern for rx
+	  #if CAN_ENABLE_INDIVIDUAL_MASK == STD_ON
+	  CanFilterMask CanFilterMask;
+	  #endif
+	} hrh;
+	struct hth
+	{
+	  Can_ObjectTypeType CanObjectType; // hth or hrh
+	  CanController *CanControllerRef; // ersätt med msgbox ptr?
+	  Can_HwHandleType CanObjectId; // hoh id, used in rx callback
+	  #if CAN_MULTIPLEXED_TRANSMISSION == STD_ON
+	  uint8 numMultiplexed;
+	  #endif
+	  #if CAN_ENABLE_MIXED_MODE == STD_OFF
+	  bool CanIdType;
+	  #endif
+	}
 } attribute((section=.canpostbuild)) CanHardwareObject;
 
 
@@ -76,7 +95,7 @@ struct CanControllerBaudrateConfig
   uint8 CanControllerSeg1;
   uint8 CanControllerSeg2;
   uint8 CanControllerSyncJumpWidth;
-} attribute((section=.canpostbuild));
+};
 
 typedef struct
 {
@@ -91,26 +110,30 @@ typedef struct
   McuClockReferencePoint *CanCpuClockRef;
 //  EcuMWakeupSource *CanWakeupSourceRef;
   CanControllerBaudrateConfig CanControllerBaudrateConfig;
-  CanFilterMask *CanFilterMask;
+  uint64 txisrmask;
+  uint64 rxisrmask;
+#if CAN_ENABLE_INDIVIDUAL_MASK == STD_OFF
+  CanFilterMask CanFilterMask[3];
+#endif
 }CanController;
 
 typedef struct
 {
-  CanController CanController[CAN_NUM_CONTROLLERS];
-  CanHardwareObject CanHardwareObject[NUM_OF_HOHS];
+  CanController comtroller[CAN_NUM_CONTROLLERS];
+  CanHardwareObject hoh[NUM_OF_HOHS];
 } CanConfigSet;
 
 typedef const struct
 {
   CanConfigSet CanConfigSet;
 //  CanGeneral CanGeneral;
-}Can_ConfigType;
+}attribute((section=.canpostbuild)) Can_ConfigType;
 
 typedef struct
 {
 }Can_ControllerBaudrateConfigType;
 
-extern const Can_ConfigType;
+extern Can_ConfigType Can_config;
 
 void Can_Init( const Can_ConfigType *Config );
 //void Can_DeInit(void);
