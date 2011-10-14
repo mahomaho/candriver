@@ -277,7 +277,7 @@ typedef enum {
         struct canbuf_t {
             union {
                 uint32_t R;
-                struct {
+                struct CS{
                     uint32_t:4;
                     uint32_t CODE:4;
                       uint32_t:1;
@@ -411,7 +411,60 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
 
 Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
 {
-  Can_ReturnType retVal = CAN_OK;
+	bool IDE = (pduInfo->ID & 0x80000000) != 0;
+	uint32_t id = ((IDE)? pduInfo->ID : pduInfo->ID << 18);  
+	struct CS cs = {
+		.CODE = 0xC,
+		.SRR = 1, // according to CAN standard
+		.IDE = IDE,
+		.LENGTH = pduInfo->len};
+	regs = Config->CanConfigSet.CanController[i].CanControllerBaseAddress;
+	for(int i = 0;
+#if CAN_MULTIPLEXED_TRANSMISSION
+		i < Can_ConfigPtr->hoh[hth].numMultiplexed;
+#else
+		i < 1;
+#endif
+		i++)
+	{
+		uint8_t msgBox = Can_ConfigPtr->hoh[hth].msgBox + i;
+		// check if empty
+		bool lock = LockSave();
+		if(controllerData[msgBox] != -1) {
+#if CAN_HW_TRANSMIT_CANCELLATION
+#if CAN_IDENTICAL_ID_CANCELLATION
+			if(regs->BUF[msgBox].ID.R <= id) {
+#else
+			if(regs->BUF[msgBox].ID.R < id) {
+#endif
+				// cancel ongoing transmission
+				regs->BUF[msgBox].CS.B.CODE = 0x9;
+				if(regs->BUF[msgBox].CS.B.CODE == 0x9 {
+					// successfully canceled transmission, call callback
+					Can_PduType pduInfo = {.ID, .DATA, .PDUID, .LEN};
+				}
+				LockRestore(lock);
+				CanIf_CancelTxConfirmation(&pduInfo);
+				return CAN_BUSY;
+			}
+#endif
+			LockRestore(lock);
+		}else {
+			controllerData[msgBox] = pduInfo->pduId;
+			// fill in the msgBox
+			memcpy(regs->BUF[msgBox].DATA.B, pduInfo->sdu, 8);
+			regs->BUF[msgBox].ID.R = id;
+			regs->BUF[msgBox].CS = cs;
+			// restore interrupt when buffer access done
+			LockRestore(lock);
+			return CAN_OK;
+		}
+		if(Can_ConfigPtr->hoh[hth].msgBox[i].reg) // check if msg sent
+		{
+			// msg sent, call the callback to inform sw
+			hthData[hth]
+		}
+	}
   bool lock = LockSave();
   uint32_t stat = Config->CanConfigSet.CanHardwareObject[hth].msgBox->
   if(stat == 0xC) {
@@ -446,12 +499,59 @@ Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
   return retVal;
 }
 
+//void Can_Isr(FlexCanT *regs, uint8 msgBox)
+//void Can_IsrH(uint8 controller)
 void Can_Isr(uint8 controller, uint8 msgBox)
 {
   FlexCanT *regs = (FlexCanT*)Config->CanConfigSet.CanController[Controller].CanControllerBaseAddress;
-  Config->CanConfigSet.CanController[i].
+  // clear flag before handling of message, necessary to not miss an interrupt when receiving a new frame
+  regs->IFRL = 1 << msgBox;
+  struct CS cs;
+  do {
+	cs = regs->BUF[msgBox].CS.B;
+  }while((cs & 0x9) == 0x1); // msg box busy updating with rx data
+  switch(cs.CODE) {
+  case 0x6:
+	// buffer overrun, report to DET and continue without break
+  case 0x2: {
+    // message received, send to callback
+	Can_IdType id = (cs.IDE)? regs->BUF[msgBox].ID.R + 0x80000000 : regs->BUF[msgBox].ID.B.STD_ID;
+	CanIf_RxIndication(controllerData[msgBox], id, cs.LENGTH, regs->BUF[msgBox].DATA.B);
+	// read timer reg to release lock of msg box
+	uint32_t timer = regs->TIMER;
+	break;
+  case 0x8:
+    // message transmitted
+	CanIf_TxConfirmation(controllerData[msgBox]);
+	// set PDU to -1 to indicate empty msgbox
+	controllerData[msgBox] = -1;
+	break;
+  default:
+    // not suppoted code, report to DET
+  }
 }
-void Can_Isr(flexCanT *controller, MsgBoxT *msgBox
+
+void Can_IsrL((uint8 controller)
+{
+  FlexCanT *regs = (FlexCanT*)Config->CanConfigSet.CanController[Controller].CanControllerBaseAddress;
+  uint32_t ifr = regs->IFRL;
+  regs->IFRL = ifr;
+  int8_t msgBox;
+  while((msgBox = 31 - CountLeadingZeroes(ifr)) >= 0) {
+    // serve the messageBox
+  }
+}
+
+void Can_IsrH((uint8 controller)
+{
+  FlexCanT *regs = (FlexCanT*)Config->CanConfigSet.CanController[Controller].CanControllerBaseAddress;
+  uint32_t ifr = regs->IFRH;
+  regs->IFRH = ifr;
+  int8_t msgBox;
+  while((msgBox = 63 - CountLeadingZeroes(ifr)) >= 32) {
+    // serve the messageBox
+  }
+}
 
 void Can_Arc_Write( Can_HwHandleType hth )
 {
@@ -464,6 +564,11 @@ void Can_Arc_Write( Can_HwHandleType hth )
 		i++)
 	int i = 0;
 	{
+		uint8_t msgBox = Can_ConfigPtr->hoh[hth].msgBox + i;
+		// check if empty
+		bool lock = LockSave();
+		if(controllerData[msgBox] == -1) {
+			controllerData[msgBox] = 
 		if(Can_ConfigPtr->hoh[hth].msgBox[i].reg) // check if msg sent
 		{
 			// msg sent, call the callback to inform sw
