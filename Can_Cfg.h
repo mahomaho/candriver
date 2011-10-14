@@ -1,5 +1,7 @@
 /// Enable individual mask mode, not supported by MPC5554 and MPC5553, MPC5567?
 #define CAN_ENABLE_INDIVIDUAL_MASK    STD_ON
+/// set number of used msgboxes, max is 64
+#define CAN_NUM_MSGBOXES			  64
 /// Enable mixed mode hth's
 #define CAN_ENABLE_MIXED_MODE		  STD_ON
 /** Enable Development Error Trace. */
@@ -12,6 +14,7 @@
 #define CAN_WAKEUP_SUPPORT            STD_OFF
 /** Not supported. */
 #define CAN_HW_TRANSMIT_CANCELLATION   STD_OFF
+#define CAN_IDENTICAL_ID_CANCELLATION  STD_OFF
 /** Not supported. */
 #define CAN_TIMEOUT_DURATION          100
 

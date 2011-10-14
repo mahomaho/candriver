@@ -34,12 +34,14 @@ typedef enum {
 typedef union
 {
 	Can_ObjectTypeType CanObjectType; // hth or hrh
-	CanController *CanControllerRef; // ersätt med msgbox ptr?
-	Can_HwHandleType CanObjectId; // hoh id, used in rx callback
+	//CanController *CanControllerRef; // ersätt med msgbox ptr?
+	CanMsgBox *msgBox; // pointer to msg box
+	//Can_HwHandleType CanObjectId; // hoh id, used in rx callback
 	struct hrh
 	{
 	  Can_ObjectTypeType CanObjectType; // hth or hrh
-	  CanController *CanControllerRef; // ersätt med msgbox ptr?
+	  //CanController *CanControllerRef; // ersätt med msgbox ptr?
+	  CanMsgBox *msgBox; // pointer to msg box
 	  Can_HwHandleType CanObjectId; // hoh id, used in rx callback
 	  uint32_t CanIdType : 1; // msb set means extended
 	  uint32_t : 2;
@@ -51,9 +53,10 @@ typedef union
 	struct hth
 	{
 	  Can_ObjectTypeType CanObjectType; // hth or hrh
-	  CanController *CanControllerRef; // ersätt med msgbox ptr?
-	  Can_HwHandleType CanObjectId; // hoh id, used in rx callback
-	  #if CAN_MULTIPLEXED_TRANSMISSION == STD_ON
+	  //CanController *CanControllerRef; // ersätt med msgbox ptr?
+	  CanMsgBox *msgBox; // pointer to msg box
+	  //Can_HwHandleType CanObjectId; // hoh id, used in rx callback
+	  #if CAN_MULTIPLEXED_TRANSMISSION
 	  uint8 numMultiplexed;
 	  #endif
 	  #if CAN_ENABLE_MIXED_MODE == STD_OFF
@@ -88,14 +91,14 @@ typedef union
   //CanIfPrivateCfg *CanSupportTTCANRef;
 } CanGeneral;*/
 
-struct CanControllerBaudrateConfig
+typedef struct
 {
   uint16 CanControllerBaudRate;
   uint8 CanControllerPropSeg;
   uint8 CanControllerSeg1;
   uint8 CanControllerSeg2;
   uint8 CanControllerSyncJumpWidth;
-};
+}Can_ControllerBaudrateConfigType;
 
 typedef struct
 {
@@ -107,19 +110,28 @@ typedef struct
 //  EcucEnumerationParamDef CanTxProcessing;
 //  EcucEnumerationParamDef CanWakeupProcessing;
 //  EcucBooleanParamDef CanWakeupSupport;
-  McuClockReferencePoint *CanCpuClockRef;
+//  McuClockReferencePoint *CanCpuClockRef;
+  uint32 CanCpuClock; // set to oscillator clock freq
 //  EcuMWakeupSource *CanWakeupSourceRef;
-  CanControllerBaudrateConfig CanControllerBaudrateConfig;
-  uint64 txisrmask;
-  uint64 rxisrmask;
+  Can_ControllerBaudrateConfigType CanControllerBaudrateConfig;
+  uint32 txisrmask;
+  uint32 rxisrmask;
+  #if CAN_NUM_MSGBOXES > 32
+  uint32 txisrmaskH;
+  uint32 rxisrmaskH;
+  #endif
 #if CAN_ENABLE_INDIVIDUAL_MASK == STD_OFF
-  CanFilterMask CanFilterMask[3];
+  CanFilterMask CanGlobalFilterMask;
+  CanFilterMask Can14FilterMask;
+  CanFilterMask Can15FilterMask;
+#else
+  CanFilterMask CanFilterMask[CAN_NUM_MSGBOXES];
 #endif
 }CanController;
 
 typedef struct
 {
-  CanController comtroller[CAN_NUM_CONTROLLERS];
+  CanController controller[CAN_NUM_CONTROLLERS];
   CanHardwareObject hoh[NUM_OF_HOHS];
 } CanConfigSet;
 
@@ -128,10 +140,6 @@ typedef const struct
   CanConfigSet CanConfigSet;
 //  CanGeneral CanGeneral;
 }attribute((section=.canpostbuild)) Can_ConfigType;
-
-typedef struct
-{
-}Can_ControllerBaudrateConfigType;
 
 extern Can_ConfigType Can_config;
 

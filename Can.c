@@ -10,7 +10,7 @@ typedef enum {
   typedef volatile struct  {
         union {
             uint32_t R;
-            struct {
+            struct MCR {
                 uint32_t MDIS:1;
                 uint32_t FRZ:1;
                 uint32_t FEN:1;
@@ -39,7 +39,7 @@ typedef enum {
 
         union {
             uint32_t R;
-            struct {
+            struct CR {
                 uint32_t PRESDIV:8;
                 uint32_t RJW:2;
                 uint32_t PSEG1:3;
@@ -324,33 +324,158 @@ static const Can_ConfigType *Can_ConfigPtr = 0;
 void Can_Init( const Can_ConfigType *Config )
 {
   Can_ConfigPtr = Config;
+  // initialize each controller
   for(int i = 0; i < CAN_NUM_CONTROLLERS; i++)
   {
     Can_InitController(i, Config->CanConfigSet.CanController[i].CanControllerBaudrateConfig);
+    // init mask registers
+#if CAN_ENABLE_INDIVIDUAL_MASK
+    for(int j = 0; j < CAN_NUM_MSGBOXES; j++){
+	  Config->CanConfigSet.CanController[i].CanControllerBaseAddress->RXIMR[j].R = Config->CanConfigSet.CanController[i].CanFilterMask[j];
+	}
+#else
+	Config->CanConfigSet.CanController[i].CanControllerBaseAddress->RXGMASK.R = Config->CanConfigSet.CanController[i].CanGlobalFilterMask;
+	Config->CanConfigSet.CanController[i].CanControllerBaseAddress->RX14MASK.R = Config->CanConfigSet.CanController[i].Can14FilterMask;
+	Config->CanConfigSet.CanController[i].CanControllerBaseAddress->RX15MASK.R = Config->CanConfigSet.CanController[i].Can15FilterMask;
+#endif
+  }
+  // initialize the hoh's
+  for(int i = 0; i < CAN_NUM_HRH; i++) {
+	Config->hrh[i].msgBox->id = Config->hrh[i].id;
+  }
+  for(int i = 0; i < CAN_NUM_HTH; i++) {
+	Config->hth[i].msgBox.cfg = 1000;
   }
 }
 
 void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigType *config)
 {
-
+  // init controller by setting STOPPED mode
+  Can_SetControllerMode(controller, CAN_T_STOP);
+  // set timing parameters in CR register
+  const struct CR cr = {
+    .PSEG1 = config->CanControllerSeg1,
+	.PSEG2 = config->CanControllerSeg2,
+	.PROPSEG = config->CanControllerPropSeg,
+	.RJW = config->CanControllerSyncJumpWidth,
+	.PRESDIV = Config->CanConfigSet.CanController[i].CanControllerBaseAddress->CanCpuClock / (
+		(config->CanControllerSeg1 + config->CanControllerSeg2 + config->CanControllerPropSeg + 4) *
+			config->CanControllerBaudRate * 1000
+		) - 1,
+	// one sample mode, according to ISO11898? Filtering is handled by the tranceiver
+	.SMP = 0,
+	// set clock source to oscillator, necessary to get enough stable clock source
+	.CLKSRC = 0,
+	// enable busoff interrupt if processing is interrupt
+	.BOFFMSK = (CAN_BUSOFF_PROCESSING == INTERRUPT),
+	// disable automatic bussoff recovery, according to requirement BSW01060
+	.BOFFREC = 1,
+	// do not enable error frame interrupt
+	///todo make this configurable and connect interrupt to DEM error report?
+	.ERRMSK = 0
+  };
+  Config->CanConfigSet.CanController[i].CanControllerBaseAddress->CR.B = cr;
 }
 
 
-Can_ReturnType Can_SetControllerMode( uint8 Controller, Can_StateTransitionType transition )
+Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType transition )
 {
-  FlexCanT *regs = (FlexCanT*)Config->CanConfigSet.CanController[Controller].CanControllerBaseAddress;
+  // controller mode:
+  // STOPPED = freeze mode
+  // SLEEP = disabled
+  // STARTED = enabled and not in freeze mode
+  // UNINIT = STOPPED
+  struct MCR mcr = {
+    MDIS = 0, // enable module
+    FRZ = 1,  // enable freeze mode
+    HALT = 1, // ... and set it
+    SRXDIS = 1, // disalbe self reception
+    BCC = CAN_ENABLE_INDIVIDUAL_MASK, // control backwards compatibility
+    AEN = 1, // enable abort of tx msgs without isr loss
+    MAXMB = 63}; // enable 64 message buffers
   switch(transition)
   {
+  case CAN_T_START:
+	mcr.FRZ = 0;
+	break;
+  case CAN_T_STOP:
+	break;
+  case CAN_T_SLEEP:
+    mcr.MDIS = 1;
+	break;
+  case CAN_T_WAKEUP:
+    break;
   }
+  Config->CanConfigSet.CanController[i].CanControllerBaseAddress->MCR.B = mcr;
 }
 
 Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
 {
-  Config->CanConfigSet.CanHardwareObject[hth]
+  Can_ReturnType retVal = CAN_OK;
+  bool lock = LockSave();
+  uint32_t stat = Config->CanConfigSet.CanHardwareObject[hth].msgBox->
+  if(stat == 0xC) {
+    // msgbox busy. Check prio
+	retVal = CAN_BUSY;
+#if CAN_HW_TRANSMIT_CANCELLATION
+#if CAN_IDENTICAL_ID_CANCELLATION
+	if(id >= pduInfo->id) {
+#else
+	if(id > pduInfo->id) {
+#endif
+	  // current message has lower prio, cancel transmission
+	   = 0xD;
+	   if( == 0xD) {
+	     // transmission canceled, call callback
+	   }
+	}
+#endif
+  } else {
+    // msgbox ready for transmission, send message
+	if(pduInfo->id & 0x80000000) {
+	  // extended id
+	  id = pduInfo->id & ~0x80000000;
+	} else {
+	  id = pduInfo->id << 18;
+	}
+	memcpy(data, pduInfo->sdu, 8);
+	controllerData[msgBox].pduId = pduInfo->id;
+	dlc = pduInfo->dlc;
+  }
+  LockRestore(lock);
+  return retVal;
 }
 
 void Can_Isr(uint8 controller, uint8 msgBox)
 {
   FlexCanT *regs = (FlexCanT*)Config->CanConfigSet.CanController[Controller].CanControllerBaseAddress;
   Config->CanConfigSet.CanController[i].
+}
+void Can_Isr(flexCanT *controller, MsgBoxT *msgBox
+
+void Can_Arc_Write( Can_HwHandleType hth )
+{
+	for(int i = 0;
+#if CAN_MULTIPLEXED_TRANSMISSION
+		i < Can_ConfigPtr->hoh[hth].numMultiplexed;
+#else
+		i < 1;
+#endif
+		i++)
+	int i = 0;
+	{
+		if(Can_ConfigPtr->hoh[hth].msgBox[i].reg) // check if msg sent
+		{
+			// msg sent, call the callback to inform sw
+			hthData[hth]
+		}
+	}
+}
+
+void Can_Arc_BusOff( uint8 controller )
+{
+	if(controlleraddress[controller]->busOffreg)
+	{
+		// busOff, call callback
+	}
 }
