@@ -322,37 +322,37 @@ typedef enum {
 static const Can_ConfigType *Can_ConfigPtr = 0;
 static union {PduIdType id; Can_HwHandleType handle} controllerData[CAN_NUM_MSGBOXES][CAN_NUM_CONTROLLERS];
 
-void Can_Init( const Can_ConfigType *Config )
+void Can_Init( const Can_ConfigType *config )
 {
-  Can_ConfigPtr = Config;
+  Can_ConfigPtr = config;
   // initialize each controller
   for(int i = 0; i < CAN_NUM_CONTROLLERS; i++)
   {
 	// init controller and baud rate
-    Can_InitController(i, Config->CanConfigSet.CanController[i].CanControllerBaudrateConfig);
-    FlexCanT *regs = Config->CanConfigSet.CanController[i].CanControllerBaseAddress;
+    Can_InitController(i, Config->controller[i].CanControllerBaudrateConfig);
+    FlexCanT *regs = Config->controller[i].CanControllerBaseAddress;
     // init mask registers
 #if CAN_ENABLE_INDIVIDUAL_MASK
     for(int j = 0; j < CAN_NUM_MSGBOXES; j++){
-	  regs->RXIMR[j].R = Config->CanConfigSet.CanController[i].CanFilterMask[j];
+	  regs->RXIMR[j].R = Config->controller[i].CanFilterMask[j];
 	}
 #else
-	regs->RXGMASK.R = Config->CanConfigSet.CanController[i].CanGlobalFilterMask;
-	regs->RX14MASK.R = Config->CanConfigSet.CanController[i].Can14FilterMask;
-	regs->RX15MASK.R = Config->CanConfigSet.CanController[i].Can15FilterMask;
+	regs->RXGMASK.R = Config->controller[i].CanGlobalFilterMask;
+	regs->RX14MASK.R = Config->controller[i].Can14FilterMask;
+	regs->RX15MASK.R = Config->controller[i].Can15FilterMask;
 #endif
     // init ISR registers
 	regs->IFRL = 0xFFFFFFFF;
 	regs->IFRH = 0xFFFFFFFF;
-	regs->IMRL = Config->CanConfigSet.CanController[i].rxisrmaskL | Config->CanConfigSet.CanController[i].txisrmaskL;
+	regs->IMRL = Config->controller[i].rxisrmaskL | Config->controller[i].txisrmaskL;
   #if CAN_NUM_MSGBOXES > 32
-	regs->IMRH = Config->CanConfigSet.CanController[i].rxisrmaskH | Config->CanConfigSet.CanController[i].txisrmaskH;
+	regs->IMRH = Config->controller[i].rxisrmaskH | Config->controller[i].txisrmaskH;
   #endif
 	
   }
   // initialize the hoh's
   for(int i = 0; i < CAN_NUM_HRH; i++) {
-    FlexCanT *regs = Config->CanConfigSet.CanController[Config->hrh[i].controller].CanControllerBaseAddress;
+    FlexCanT *regs = Config->controller[Config->hrh[i].controller].CanControllerBaseAddress;
 	bool IDE = (Config->hrh[i].id & 0x80000000) != 0;
 	uint32_t id = IDE? Config->hrh[i].id : Config->hrh[i].id << 18;
 	regs->BUF[Config->hrh[i].msgBox].ID.R = id;
@@ -363,7 +363,7 @@ void Can_Init( const Can_ConfigType *Config )
 	controllerData[Config->hrh[i].msgBox][Config->hrh[i].controller].handle = i;
   }
   for(int i = 0; i < CAN_NUM_HTH; i++) {
-    FlexCanT *regs = Config->CanConfigSet.CanController[Config->hth[i].controller].CanControllerBaseAddress;
+    FlexCanT *regs = Config->controller[Config->hth[i].controller].CanControllerBaseAddress;
 	bool IDE = (Config->hth[i].id & 0x80000000) != 0;
 	uint32_t id = IDE? Config->hth[i].id : Config->hth[i].id << 18;
 	regs->BUF[Config->hth[i].msgBox].ID.R = id;
@@ -386,7 +386,7 @@ void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigTyp
 	.PSEG2 = config->CanControllerSeg2,
 	.PROPSEG = config->CanControllerPropSeg,
 	.RJW = config->CanControllerSyncJumpWidth,
-	.PRESDIV = Config->CanConfigSet.CanController[i].CanControllerBaseAddress->CanCpuClock / (
+	.PRESDIV = Config->controller[i].CanControllerBaseAddress->CanCpuClock / (
 		(config->CanControllerSeg1 + config->CanControllerSeg2 + config->CanControllerPropSeg + 4) *
 			config->CanControllerBaudRate * 1000
 		) - 1,
@@ -402,9 +402,30 @@ void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigTyp
 	///todo make this configurable and connect interrupt to DEM error report?
 	.ERRMSK = 0
   };
-  Config->CanConfigSet.CanController[i].CanControllerBaseAddress->CR.B = cr;
+  Config->controller[i].CanControllerBaseAddress->CR.B = cr;
 }
 
+void Can_DisableControllerInterrupts( uint8 controller ) {
+	// disable busOff isr
+	Can_ConfigPtr->controller[controller].CanControllerBaseAddress->CR.BBOFFMSK = 0;
+	// err isr aren't enabled
+	// disable msgBox isrs
+	Can_ConfigPtr->controller[controller].CanControllerBaseAddress->IMRL = 0;
+#if CAN_NUM_MSGBOXES > 32
+	Can_ConfigPtr->controller[controller].CanControllerBaseAddress->IMRH = 0;
+#endif
+}
+
+void Can_EnableControllerInterrupts( uint8 controller ) {
+	// enable busOff isr
+	Can_ConfigPtr->controller[controller].CanControllerBaseAddress->CR.BBOFFMSK = (CAN_BUSOFF_PROCESSING == INTERRUPT);
+	// err isr aren't enabled
+	// enable msgBox isrs
+	Can_ConfigPtr->controller[controller].CanControllerBaseAddress->IMRL = Can_ConfigPtr->controller[i].rxisrmaskL | Can_ConfigPtr->controller[i].txisrmaskL;
+#if CAN_NUM_MSGBOXES > 32
+	Can_ConfigPtr->controller[controller].CanControllerBaseAddress->IMRH = Can_ConfigPtr->controller[i].rxisrmaskH | Can_ConfigPtr->controller[i].txisrmaskH;
+#endif
+}
 
 Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType transition )
 {
@@ -434,7 +455,7 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
   case CAN_T_WAKEUP:
     break;
   }
-  Config->CanConfigSet.CanController[i].CanControllerBaseAddress->MCR.B = mcr;
+  Config->controller[i].CanControllerBaseAddress->MCR.B = mcr;
 }
 
 Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
@@ -446,7 +467,7 @@ Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
 		.SRR = 1, // according to CAN standard
 		.IDE = IDE,
 		.LENGTH = pduInfo->len};
-	regs = Config->CanConfigSet.CanController[Can_ConfigPtr->hoh[hth].controller].CanControllerBaseAddress;
+	regs = Config->controller[Can_ConfigPtr->hoh[hth].controller].CanControllerBaseAddress;
 	for(int i = 0;
 #if CAN_MULTIPLEXED_TRANSMISSION
 		i < Can_ConfigPtr->hoh[hth].numMultiplexed;
@@ -522,17 +543,15 @@ static void Isr(uint8 controller, uint8 msgBox, FlexCanT *regs) {
   }
 }
 
-void Can_Arc_Isr(uint8 controller, uint8 msgBox)
-{
-  FlexCanT *regs = Can_ConfigPtr->CanConfigSet.CanController[Controller].CanControllerBaseAddress;
+void Can_Arc_Isr(uint8 controller, uint8 msgBox) {
+  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
   // clear flag before handling of message, necessary to not miss an interrupt when receiving a new frame
   regs->IFRL = 1 << msgBox;
   Isr(controller, msgBox, regs);
 }
 
-void Can_Arc_IsrL((uint8 controller)
-{
-  FlexCanT *regs = Can_ConfigPtr->CanConfigSet.CanController[Controller].CanControllerBaseAddress;
+void Can_Arc_IsrL((uint8 controller) {
+  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
   uint32_t ifr = regs->IFRL;
   regs->IFRL = ifr;
   int8_t msgBox;
@@ -543,7 +562,7 @@ void Can_Arc_IsrL((uint8 controller)
 }
 
 void Can_Arc_IsrH((uint8 controller) {
-  FlexCanT *regs = Can_ConfigPtr->CanConfigSet.CanController[Controller].CanControllerBaseAddress;
+  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
   uint32_t ifr = regs->IFRH;
   regs->IFRH = ifr;
   int8_t msgBox;
@@ -554,7 +573,7 @@ void Can_Arc_IsrH((uint8 controller) {
 }
 
 void Can_Arc_BusOff( uint8 controller ) {
-  FlexCanT *regs = Can_ConfigPtr->CanConfigSet.CanController[Controller].CanControllerBaseAddress;
+  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
   struct ESR esr = regs->ESR.B
   if(regs->ESR.B.BOFFINT) {
     // busOff, set stopped mode
@@ -568,8 +587,8 @@ void Can_Arc_BusOff( uint8 controller ) {
 }
 
 void Can_Arc_MainFunction_Write( uint8 controller ) {
-  FlexCanT *regs = Can_ConfigPtr->CanConfigSet.CanController[Controller].CanControllerBaseAddress;
-  uint32_t ifr = regs->IFRL & Can_ConfigPtr->CanConfigSet.CanController[Controller].txisrmask;
+  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
+  uint32_t ifr = regs->IFRL & Can_ConfigPtr->controller[Controller].txisrmask;
   regs->IFRL = ifr;
   int8_t msgBox;
   while((msgBox = 31 - CountLeadingZeroes(ifr)) >= 0) {
@@ -578,7 +597,7 @@ void Can_Arc_MainFunction_Write( uint8 controller ) {
   }
 #if CAN_NUM_MSGBOXES > 32
   ifr = regs->IFRH;
-  regs->IFRH = ifr & Can_ConfigPtr->CanConfigSet.CanController[Controller].txisrmaskH;
+  regs->IFRH = ifr & Can_ConfigPtr->controller[Controller].txisrmaskH;
   int8_t msgBox;
   while((msgBox = 63 - CountLeadingZeroes(ifr)) >= 32) {
     // serve the messageBox
@@ -588,8 +607,8 @@ void Can_Arc_MainFunction_Write( uint8 controller ) {
 }
 
 void Can_Arc_MainFunction_Read( uint8 controller ) {
-  FlexCanT *regs = Can_ConfigPtr->CanConfigSet.CanController[Controller].CanControllerBaseAddress;
-  uint32_t ifr = regs->IFRL & Can_ConfigPtr->CanConfigSet.CanController[Controller].rxisrmask;
+  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
+  uint32_t ifr = regs->IFRL & Can_ConfigPtr->controller[Controller].rxisrmask;
   regs->IFRL = ifr;
   int8_t msgBox;
   while((msgBox = 31 - CountLeadingZeroes(ifr)) >= 0) {
@@ -598,7 +617,7 @@ void Can_Arc_MainFunction_Read( uint8 controller ) {
   }
 #if CAN_NUM_MSGBOXES > 32
   ifr = regs->IFRH;
-  regs->IFRH = ifr & Can_ConfigPtr->CanConfigSet.CanController[Controller].rxisrmaskH;
+  regs->IFRH = ifr & Can_ConfigPtr->controller[Controller].rxisrmaskH;
   int8_t msgBox;
   while((msgBox = 63 - CountLeadingZeroes(ifr)) >= 32) {
     // serve the messageBox
@@ -607,3 +626,7 @@ void Can_Arc_MainFunction_Read( uint8 controller ) {
 #endif
 }
 
+void Can_ErrIsr(uint8 controller) {
+	// only busoff error interrupts are enabled, call the busoff handle function
+	Can_Arc_BusOff(controller);
+}

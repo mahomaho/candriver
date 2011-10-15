@@ -94,17 +94,17 @@ void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigTyp
 Can_ReturnType Can_SetControllerMode( uint8 Controller, Can_StateTransitionType transition );
 void Can_DisableControllerInterrupts( uint8 controller );
 void Can_EnableControllerInterrupts( uint8 controller );
-// Hth - for Flexcan, the hardware message box number... .We don't care
-
-
 Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo );
 
-void Can_Cbk_CheckWakeup( uint8 controller );
+//void Can_Cbk_CheckWakeup( uint8 controller );
 void Can_MainFunction_BusOff( void );
-void Can_MainFunction_Wakeup( void );
-void Can_MainFunction_Mode( void );
+//void Can_MainFunction_Wakeup( void );
+/// nothing to be done in this function, add an empty inline function for compatibility
+static inline void Can_MainFunction_Mode( void ){}
 
-void Can_Isr(Can_HwHandleType hoh, msgboxP);
+void Can_Arc_Isr(uint8 controller, uint8 msgBox);
+void Can_Arc_IsrL((uint8 controller);
+void Can_Arc_IsrH((uint8 controller);
 void Can_ErrIsr(uint8 controller);
 
 void Can_Arc_Write( Can_HwHandleType hth ); // called either from Can_MainFunction_Write or isr
