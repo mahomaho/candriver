@@ -5,18 +5,6 @@
 
 struct CanController;
 
-typedef struct 
-{
-  uint32 CanFilterMaskValue;
-} attribute((section=.canpostbuild)) CanFilterMask;
-
-/** CAN id types. */
-typedef enum {
-  CAN_ID_TYPE_EXTENDED,
-  CAN_ID_TYPE_MIXED,
-  CAN_ID_TYPE_STANDARD,
-} Can_IdTypeType;
-
 /** CAN HW object types. */
 typedef enum {
   CAN_OBJECT_TYPE_NONE,
@@ -24,124 +12,76 @@ typedef enum {
   CAN_OBJECT_TYPE_TRANSMIT,
 } Can_ObjectTypeType;
 
-/** HW object Can type. Full not supported. */
-typedef enum {
-  CAN_ARC_HANDLE_TYPE_BASIC,
-  CAN_ARC_HANDLE_TYPE_FULL
-} Can_Arc_HohType;
-
-
-typedef union
+typedef const struct
 {
-	Can_ObjectTypeType CanObjectType; // hth or hrh
-	//CanController *CanControllerRef; // ersätt med msgbox ptr?
-	CanMsgBox *msgBox; // pointer to msg box
-	//Can_HwHandleType CanObjectId; // hoh id, used in rx callback
-	struct hrh
-	{
-	  Can_ObjectTypeType CanObjectType; // hth or hrh
-	  //CanController *CanControllerRef; // ersätt med msgbox ptr?
-	  CanMsgBox *msgBox; // pointer to msg box
-	  Can_HwHandleType CanObjectId; // hoh id, used in rx callback
-	  uint32_t CanIdType : 1; // msb set means extended
-	  uint32_t : 2;
-	  uint32_t CanIdValue : 29; // canId value is the pattern for rx
-	  #if CAN_ENABLE_INDIVIDUAL_MASK == STD_ON
-	  CanFilterMask CanFilterMask;
-	  #endif
-	} hrh;
-	struct hth
-	{
-	  Can_ObjectTypeType CanObjectType; // hth or hrh
-	  //CanController *CanControllerRef; // ersätt med msgbox ptr?
-	  CanMsgBox *msgBox; // pointer to msg box
-	  //Can_HwHandleType CanObjectId; // hoh id, used in rx callback
-	  #if CAN_MULTIPLEXED_TRANSMISSION
-	  uint8 numMultiplexed;
-	  #endif
-	  #if CAN_ENABLE_MIXED_MODE == STD_OFF
-	  bool CanIdType;
-	  #endif
-	}
-} attribute((section=.canpostbuild)) CanHardwareObject;
-
-
-/*typedef struct
-{
-  EcucBooleanParamDef CanDevErrorDetection;
-  EcucBooleanParamDef CanHardwareCancellation;
-  EcucBooleanParamDef CanIdenticalIdCancellation;
-  EcucIntegerParamDef CanIndex;
-  EcucFunctionNameDef CanLPduReceiveCalloutFunction;
-  EcucFloatParamDef CanMainFunctionBusoffPeriod;
-  EcucFloatParamDef CanMainFunctionModePeriod;
-  {
-  EcucFloatParamDef CanMainFunctionReadPeriod;
-  CanHardwareObject *CanMainFunctionReadPeriodRef;
-  }[];
-  EcucFloatParamDef CanMainFunctionWakeupPeriod;
-  {
-  EcucFloatParamDef CanMainFunctionWritePeriod;
-  CanHardwareObject *CanMainFunctionWritePeriodRef;
-  }[];
-  EcucBooleanParamDef CanMultiplexedTransmission;
-  EcucFloatParamDef CanTimeoutDuration;
-  EcucBooleanParamDef CanVersionInfoApi;
-  OsCounter *CanCounterRef;
-  //CanIfPrivateCfg *CanSupportTTCANRef;
-} CanGeneral;*/
-
-typedef struct
-{
-  uint16 CanControllerBaudRate;
-  uint8 CanControllerPropSeg;
-  uint8 CanControllerSeg1;
-  uint8 CanControllerSeg2;
-  uint8 CanControllerSyncJumpWidth;
-}Can_ControllerBaudrateConfigType;
-
-typedef struct
-{
-//  EcucEnumerationParamDef CanBusoffProcessing;
-//  EcucBooleanParamDef CanControllerActivation;
-  EcucIntegerParamDef CanControllerBaseAddress;
-//  EcucIntegerParamDef CanControllerId;
-//  EcucEnumerationParamDef CanRxProcessing;
-//  EcucEnumerationParamDef CanTxProcessing;
-//  EcucEnumerationParamDef CanWakeupProcessing;
-//  EcucBooleanParamDef CanWakeupSupport;
-//  McuClockReferencePoint *CanCpuClockRef;
-  uint32 CanCpuClock; // set to oscillator clock freq
-//  EcuMWakeupSource *CanWakeupSourceRef;
-  Can_ControllerBaudrateConfigType CanControllerBaudrateConfig;
-  uint32 txisrmask;
-  uint32 rxisrmask;
-  #if CAN_NUM_MSGBOXES > 32
-  uint32 txisrmaskH;
-  uint32 rxisrmaskH;
-  #endif
-#if CAN_ENABLE_INDIVIDUAL_MASK == STD_OFF
-  CanFilterMask CanGlobalFilterMask;
-  CanFilterMask Can14FilterMask;
-  CanFilterMask Can15FilterMask;
-#else
-  CanFilterMask CanFilterMask[CAN_NUM_MSGBOXES];
+	/// Can id for hoh, msb set if extended ID. ID will be overwritten in case of an hth
+	Can_IdType canId;
+	/// type of object, values from Can_ObjectTypeType
+	uint8 canObjectType; // hth or hrh
+	/// controller idx that this hoh is connected to
+	uint8 controller;
+	/// msgBox number used within the can controller for this hoh
+	uint8 msgBox;
+#if CAN_MULTIPLEXED_TRANSMISSION
+	/// hth parameter, defines how many msgBoxes used for multiplexed transmission
+	/// set to number of msgBoxes starting with \msgBox that will be used for multiplexed transmission. Ignored if hrh
+	uint8 numMultiplexed;
 #endif
-}CanController;
-
-typedef struct
-{
-  CanController controller[CAN_NUM_CONTROLLERS];
-  CanHardwareObject hoh[NUM_OF_HOHS];
-} CanConfigSet;
+} CanHardwareObject;
 
 typedef const struct
 {
-  CanConfigSet CanConfigSet;
-//  CanGeneral CanGeneral;
-}attribute((section=.canpostbuild)) Can_ConfigType;
+  /// baud rate value in kbaud
+  uint16 CanControllerBaudRate;
+  /// prop seg value for cotroller
+  uint8 CanControllerPropSeg;
+  /// seg1 value for controller
+  uint8 CanControllerSeg1;
+  /// seg2 value for controller
+  uint8 CanControllerSeg2;
+  /// sjw value for controller
+  uint8 CanControllerSyncJumpWidth;
+}Can_ControllerBaudrateConfigType;
 
-extern Can_ConfigType Can_config;
+struct FlexCan;
+typedef volatile struct FlexCan FlexCanT;
+
+typedef struct
+{
+  /// Default baud rate and timing parameters for controller
+  Can_ControllerBaudrateConfigType CanControllerBaudrateConfig;
+  /// Can controller base address, see ref manual for correct value
+  FlexCanT *CanControllerBaseAddress;
+  /// set to oscillator clock freq
+  uint32 CanCpuClock;
+  /// set bit to 1 if msgBox used for tx, msbBox 0 - 31
+  uint32 txisrmask;
+  /// set bit to 1 if msgBox used for rx, msbBox 0 - 31
+  uint32 rxisrmask;
+  #if CAN_NUM_MSGBOXES > 32
+  /// set bit to 1 if msgBox used for tx, msbBox 32 - 63
+  uint32 txisrmaskH;
+  /// set bit to 1 if msgBox used for rx, msbBox 32 - 63
+  uint32 rxisrmaskH;
+  #endif
+#if CAN_ENABLE_INDIVIDUAL_MASK == STD_OFF
+  /// Mask value for all msgBoxes exsept 14 and 15
+  Can_IdType CanGlobalFilterMask;
+  /// Mask value for msgBox 14
+  Can_IdType Can14FilterMask;
+  /// Mask value for msgBox 15
+  Can_IdType Can15FilterMask;
+#else
+  /// Mask value for each msgBox
+  Can_IdType CanFilterMask[CAN_NUM_MSGBOXES];
+#endif
+}CanController;
+
+typedef const struct
+{
+  CanController controller[CAN_NUM_CONTROLLERS];
+  CanHardwareObject hoh[NUM_OF_HOHS];
+}attribute((section=.canpostbuild)) Can_ConfigType;
 
 void Can_Init( const Can_ConfigType *Config );
 //void Can_DeInit(void);
