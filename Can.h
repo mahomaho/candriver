@@ -1,8 +1,25 @@
+#ifndef CAN_H_
+#define CAN_H_
 
+
+#include "ComStack_Types.h"
 #include "Can_GeneralTypes.h"
 #include "Can_Cfg.h"
-#include "ComStack_Types.h"
 
+//#define CAN_MODULE_ID			    MODULE_ID_CAN
+#define CAN_AR_RELEASE_MAJOR_VERSION  4
+#define CAN_AR_RELEASE_MINOR_VERSION  0
+///todo verify versions of other modules
+
+#define CAN_E_PARAM_POINTER     0x01
+#define CAN_E_PARAM_HANDLE     0x02
+#define CAN_E_PARAM_DLC     	0x03
+#define CAN_E_PARAM_CONTROLLER 0x04
+// API service used without initialization
+#define CAN_E_UNINIT           0x05
+// Init transition for current mode
+#define CAN_E_TRANSITION       0x06
+#define CAN_E_DATALOST         0x07
 struct CanController;
 
 /** CAN HW object types. */
@@ -94,13 +111,15 @@ void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigTyp
 Can_ReturnType Can_SetControllerMode( uint8 Controller, Can_StateTransitionType transition );
 void Can_DisableControllerInterrupts( uint8 controller );
 void Can_EnableControllerInterrupts( uint8 controller );
+// no wakeup support, always return not ok
+static inline Can_ReturnType Can_CheckWakeup( uint8 controller ) {return CAN_NOT_OK;}
 Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo );
 
 //void Can_Cbk_CheckWakeup( uint8 controller );
-void Can_MainFunction_BusOff( void );
-//void Can_MainFunction_Wakeup( void );
-/// nothing to be done in this function, add an empty inline function for compatibility
-static inline void Can_MainFunction_Mode( void ){}
+/// no wakeup support from this controller
+#define Can_MainFunction_Wakeup()
+/// function used to poll mode change of CAN controller in case of timeout
+void Can_MainFunction_Mode( void );
 
 void Can_Arc_Isr(uint8 controller, uint8 msgBox);
 void Can_Arc_IsrL((uint8 controller);
@@ -110,4 +129,6 @@ void Can_ErrIsr(uint8 controller);
 void Can_Arc_Write( Can_HwHandleType hth ); // called either from Can_MainFunction_Write or isr
 void Can_Arc_Read( Can_HwHandleType hrh );  // called either from Can_MainFunction_Read or isr
 void Can_Arc_BusOff( uint8 controller );
-void Can_Arc_Wakeup( uint8 controller );
+
+#endif // CAN_H_
+

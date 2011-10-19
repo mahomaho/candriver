@@ -17,3 +17,8 @@ void CanIf_CancelTxConfirmation(
 void CanIf_ControllerBusOff( 
     uint8 Controller
 );
+
+void CanIf_ControllerModeIndication(
+    uint8 Controller,
+    CanIf_ControllerModeType ControllerMode
+);

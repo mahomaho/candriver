@@ -5,15 +5,17 @@
 /** Enable Development Error Trace. */
 #define CAN_DEV_ERROR_DETECT          STD_ON
 /** Build version info API. */
-#define CAN_VERSION_INFO_API          STD_ON
+#define CAN_VERSION_INFO_API          STD_OFF
 /// Enable multiplexed transmission, multiple tx msgboxes per hth
 #define CAN_MULTIPLEXED_TRANSMISSION  STD_ON
 /// Enable cancelation of tx msgs with lower prio
 #define CAN_HW_TRANSMIT_CANCELLATION   STD_OFF
 ///  Cancellation also cancels equal prio
 #define CAN_IDENTICAL_ID_CANCELLATION  STD_OFF
-/** Not supported. */
+/// Max busy wait time for CAN state transition [ms]
 #define CAN_TIMEOUT_DURATION          100
+/// general CAN RX callout function, do not define to disable
+#define CAN_LPDU_RX_CB                CanLPduReceiveCalloutFunction 
 
 /// Bus off handling
 #define CAN_BUSOFF_PROCESSING         INTERRUPT  // INTERRUPT/POLLING
@@ -25,7 +27,6 @@
 void Can_Arc_Write( Can_HwHandleType hth ); // called either from Can_MainFunction_Write or isr
 void Can_Arc_Read( Can_HwHandleType hrh );  // called either from Can_MainFunction_Read or isr
 void Can_Arc_BusOff( uint8 controller );	// called either from Can_MainFunction_BusOff or isr
-void Can_Arc_Wakeup( uint8 controller );// called either from Can_MainFunction_Wakeup or isr
 
 typedef enum {
 	CanContoroller_CAN_A,
