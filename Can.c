@@ -358,7 +358,7 @@ void Can_Init( const Can_ConfigType *config )
   {
 	// init controller and baud rate
     Can_InitController(i, Config->controller[i].CanControllerBaudrateConfig);
-    FlexCanT *regs = Config->controller[i].CanControllerBaseAddress;
+    FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[i];
     // init mask registers
 #if CAN_ENABLE_INDIVIDUAL_MASK
     for(int j = 0; j < CAN_NUM_MSGBOXES; j++){
@@ -380,7 +380,7 @@ void Can_Init( const Can_ConfigType *config )
   }
   // initialize the hoh's
   for(int i = 0; i < CAN_NUM_HRH; i++) {
-    FlexCanT *regs = Config->controller[Config->hrh[i].controller].CanControllerBaseAddress;
+    FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[Config->hrh[i].controller];
 	bool IDE = (Config->hrh[i].id & 0x80000000) != 0;
 	uint32_t id = IDE? Config->hrh[i].id : Config->hrh[i].id << 18;
 	regs->BUF[Config->hrh[i].msgBox].ID.R = id;
@@ -391,7 +391,7 @@ void Can_Init( const Can_ConfigType *config )
 	controllerData[Config->hrh[i].msgBox][Config->hrh[i].controller].handle = i;
   }
   for(int i = 0; i < CAN_NUM_HTH; i++) {
-    FlexCanT *regs = Config->controller[Config->hth[i].controller].CanControllerBaseAddress;
+    FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[Config->hth[i].controller];
 	bool IDE = (Config->hth[i].id & 0x80000000) != 0;
 	uint32_t id = IDE? Config->hth[i].id : Config->hth[i].id << 18;
 	regs->BUF[Config->hth[i].msgBox].ID.R = id;
@@ -411,8 +411,9 @@ void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigTyp
   VALIDATE_NO_RV(config != 0, 2, CAN_E_PARAM_POINTER);
   VALIDATE_NO_RV(controller < CAN_NUM_CONTROLLERS, 2, CAN_E_PARAM_CONTROLLER);
   // validate stoped mode
-  VALIDATE_NO_RV(Config->controller[i].CanControllerBaseAddress->MCR.FRZ == 1 &&
-    Config->controller[i].CanControllerBaseAddress->MCR.MDIS == 0, 2, CAN_E_TRANSITION);
+  FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
+  VALIDATE_NO_RV(regs->MCR.FRZ == 1 &&
+    regs->MCR.MDIS == 0, 2, CAN_E_TRANSITION);
   // init controller by setting STOPPED mode
   Can_SetControllerMode(controller, CAN_T_STOP);
   // set timing parameters in CR register
@@ -421,7 +422,7 @@ void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigTyp
 	.PSEG2 = config->CanControllerSeg2,
 	.PROPSEG = config->CanControllerPropSeg,
 	.RJW = config->CanControllerSyncJumpWidth,
-	.PRESDIV = Config->controller[i].CanControllerBaseAddress->CanCpuClock / (
+	.PRESDIV = *CAN_CPU_CLOCK_REFERENCE / (
 		(config->CanControllerSeg1 + config->CanControllerSeg2 + config->CanControllerPropSeg + 4) *
 			config->CanControllerBaudRate * 1000
 		) - 1,
@@ -437,7 +438,7 @@ void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigTyp
 	///todo make this configurable and connect interrupt to DEM error report?
 	.ERRMSK = 0
   };
-  Config->controller[i].CanControllerBaseAddress->CR.B = cr;
+  regs->CR.B = cr;
 }
 
 // service id 3
@@ -446,6 +447,7 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
   //validate not in CAN_UNINIT mode
   VALIDATE(Can_ConfigPtr != 0, 3, CAN_E_UNINIT);
   VALIDATE(controller < CAN_NUM_CONTROLLERS, 3, CAN_E_PARAM_CONTROLLER);
+  FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
   // controller mode:
   // STOPPED = freeze mode
   // SLEEP = disabled
@@ -463,22 +465,22 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
   {
   case CAN_T_START:
     // validate stopped mode
-    VALIDATE(Can_ConfigPtr->controller[controller].CanControllerBaseAddress->MCR.B.FRZ == 1 &&
-	  Can_ConfigPtr->controller[i].CanControllerBaseAddress->MCR.B.MDIS == 0, 3, CAN_E_TRANSITION);
+    VALIDATE(regs->MCR.B.FRZ == 1 &&
+	  regs->MCR.B.MDIS == 0, 3, CAN_E_TRANSITION);
 	// set start mode
 	mcr.FRZ = 0;
 	// clear eventual pending tx requests, disable interrupts to ensure no simultaneous transmit
 	bool lock = LockSave();
 	for(int i = 0; i < CAN_NUM_MSGBOXES; i++) {
-		if(Can_ConfigPtr->controller[i].CanControllerBaseAddress->BUF[i].CS.B.CODE == 0xC) {
+		if(regs->BUF[i].CS.B.CODE == 0xC) {
 			// pending tx request, clear it and set id to -1
-			Can_ConfigPtr->controller[i].CanControllerBaseAddress->BUF[i].CS.B.CODE = 0x8;
+			regs->BUF[i].CS.B.CODE = 0x8;
 			controllerData[i][controller].id = -1;
 		}
 	}
 	LockRestore(lock);
 	// do the mode change
-	Can_ConfigPtr->controller[i].CanControllerBaseAddress->MCR.B = mcr;
+	regs->MCR.B = mcr;
 	// no delayed state transition, call mode indication directly
 	CanIf_ControllerModeIndication(controller, CANIF_CS_STARTED);
 	// enable the controller interrupts
@@ -486,16 +488,16 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
     break;
   case CAN_T_STOP:
 	// it isalways ok to set stop mode, even in stoped mode
-	if(Can_ConfigPtr->controller[i].CanControllerBaseAddress->MCR.B.FRZ == 0) {
+	if(regs->MCR.B.FRZ == 0) {
 		// entering stoped mode from started mode, disable interrupts again
 		// disable interrupts in stoped mode since no isrs are allowed
 	  	Can_DisableControllerInterrupts(controller);
 	}
 	// set max time for state transition
 	int32 timeout = GetCounterValue() + CAN_TIMEOUT_DURATION;
-	Can_ConfigPtr->controller[i].CanControllerBaseAddress->MCR.B = mcr;
+	regs->MCR.B = mcr;
 	do {
-	  if(Can_ConfigPtr->controller[i].CanControllerBaseAddress->MCR.B.) {
+	  if(regs->MCR.B.) {
 	    // state has changed, report to CanIf and return
 		CanIf_ControllerModeIndication(controller, CANIF_CS_STOPPED);
 		return;
@@ -506,14 +508,14 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
     break;
   case CAN_T_SLEEP:
     // validate stopped mode
-    VALIDATE(Can_ConfigPtr->controller[i].CanControllerBaseAddress->MCR.B.FRZ == 1 &&
-	  Can_ConfigPtr->controller[i].CanControllerBaseAddress->MCR.B.MDIS == 0, 3, CAN_E_TRANSITION);
+    VALIDATE(regs->MCR.B.FRZ == 1 &&
+	  regs->MCR.B.MDIS == 0, 3, CAN_E_TRANSITION);
     mcr.MDIS = 1;
 	// set max time for state transition
 	int32 timeout = GetCounterValue() + CAN_TIMEOUT_DURATION;
-	Can_ConfigPtr->controller[i].CanControllerBaseAddress->MCR.B = mcr;
+	regs->MCR.B = mcr;
 	do {
-	  if(Can_ConfigPtr->controller[i].CanControllerBaseAddress->MCR.B.) {
+	  if(regs->MCR.B.) {
 	    // state has changed, report to CanIf and return
 		CanIf_ControllerModeIndication(controller, CANIF_CS_SLEEP);
 		return;
@@ -524,8 +526,8 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
     break;
   case CAN_T_WAKEUP:
     // validate sleep mode
-    VALIDATE(Can_ConfigPtr->controller[i].CanControllerBaseAddress->MCR.B.MDIS == 1, 3, CAN_E_TRANSITION);
-	Can_ConfigPtr->controller[i].CanControllerBaseAddress->MCR.B = mcr;
+    VALIDATE(regs->MCR.B.MDIS == 1, 3, CAN_E_TRANSITION);
+	regs->MCR.B = mcr;
 	// no delayed state transition, call mode indication directly
 	CanIf_ControllerModeIndication(controller, CANIF_CS_STOPPED);
     break;
@@ -536,15 +538,16 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
 void Can_DisableControllerInterrupts( uint8 controller ) {
     VALIDATE_NO_RV(Can_ConfigPtr != 0, 4, CAN_E_UNINIT);
     VALIDATE_NO_RV(controller < CAN_NUM_CONTROLLERS, 4, CAN_E_PARAM_CONTROLLER);
+    FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
 	bool lock = LockSave();
 	if(CanIsrDisableCnt[controller]++ == 0) {
 		// disable busOff isr
-		Can_ConfigPtr->controller[controller].CanControllerBaseAddress->CR.BBOFFMSK = 0;
+		regs->CR.BBOFFMSK = 0;
 		// err isr aren't enabled
 		// disable msgBox isrs
-		Can_ConfigPtr->controller[controller].CanControllerBaseAddress->IMRL = 0;
+		regs->IMRL = 0;
 #if CAN_NUM_MSGBOXES > 32
-		Can_ConfigPtr->controller[controller].CanControllerBaseAddress->IMRH = 0;
+		regs->IMRH = 0;
 #endif
 	}
 	LockRestore(lock);
@@ -554,17 +557,18 @@ void Can_DisableControllerInterrupts( uint8 controller ) {
 void Can_EnableControllerInterrupts( uint8 controller ) {
     VALIDATE_NO_RV(Can_ConfigPtr != 0, 5, CAN_E_UNINIT);
     VALIDATE_NO_RV(controller < CAN_NUM_CONTROLLERS, 5, CAN_E_PARAM_CONTROLLER);
+    FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
 	bool lock = LockSave();
 	if(CanIsrDisableCnt[controller] == 0) {
 		// isrs are already enabled, do nothing
 	} else if(--CanIsrDisableCnt[controller] == 0) {
 		// enable busOff isr
-		Can_ConfigPtr->controller[controller].CanControllerBaseAddress->CR.BBOFFMSK = (CAN_BUSOFF_PROCESSING == INTERRUPT);
+		regs->CR.BBOFFMSK = (CAN_BUSOFF_PROCESSING == INTERRUPT);
 		// err isr aren't enabled
 		// enable msgBox isrs
-		Can_ConfigPtr->controller[controller].CanControllerBaseAddress->IMRL = Can_ConfigPtr->controller[i].rxisrmaskL | Can_ConfigPtr->controller[i].txisrmaskL;
+		regs->IMRL = Can_ConfigPtr->controller[i].rxisrmaskL | Can_ConfigPtr->controller[i].txisrmaskL;
 #if CAN_NUM_MSGBOXES > 32
-		Can_ConfigPtr->controller[controller].CanControllerBaseAddress->IMRH = Can_ConfigPtr->controller[i].rxisrmaskH | Can_ConfigPtr->controller[i].txisrmaskH;
+		regs->IMRH = Can_ConfigPtr->controller[i].rxisrmaskH | Can_ConfigPtr->controller[i].txisrmaskH;
 #endif
 	}
 	LockRestore(lock);
@@ -586,7 +590,7 @@ Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
 		.SRR = 1, // according to CAN standard
 		.IDE = IDE,
 		.LENGTH = pduInfo->len};
-	regs = Config->controller[Can_ConfigPtr->hoh[hth].controller].CanControllerBaseAddress;
+	FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[Can_ConfigPtr->hoh[hth].controller];
 	for(int i = 0;
 #if CAN_MULTIPLEXED_TRANSMISSION
 		i < Can_ConfigPtr->hoh[hth].numMultiplexed;
@@ -644,7 +648,7 @@ static void Isr(uint8 controller, uint8 msgBox, FlexCanT *regs) {
   switch(cs.CODE) {
   case 0x6:
 	// buffer overrun, report to DET and continue without break
-	DET_REPORTERROR(MODULE_ID_CAN, 0, CAN_E_DATALOST);
+	DET_REPORTERROR(MODULE_ID_CAN, 0, 8, CAN_E_DATALOST);
   case 0x2: {
     // message received, send to callback
 	Can_IdType id = (cs.IDE)? regs->BUF[msgBox].ID.R + 0x80000000 : regs->BUF[msgBox].ID.B.STD_ID;
@@ -670,14 +674,14 @@ static void Isr(uint8 controller, uint8 msgBox, FlexCanT *regs) {
 }
 
 void Can_Arc_Isr(uint8 controller, uint8 msgBox) {
-  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
+  FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
   // clear flag before handling of message, necessary to not miss an interrupt when receiving a new frame
   regs->IFRL = 1 << msgBox;
   Isr(controller, msgBox, regs);
 }
 
 void Can_Arc_IsrL((uint8 controller) {
-  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
+  FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
   uint32_t ifr = regs->IFRL;
   regs->IFRL = ifr;
   int8_t msgBox;
@@ -688,7 +692,7 @@ void Can_Arc_IsrL((uint8 controller) {
 }
 
 void Can_Arc_IsrH((uint8 controller) {
-  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
+  FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
   uint32_t ifr = regs->IFRH;
   regs->IFRH = ifr;
   int8_t msgBox;
@@ -701,7 +705,7 @@ void Can_Arc_IsrH((uint8 controller) {
 // called from can_mainfunction_write, service id 1
 void Can_Arc_MainFunction_Write( uint8 controller ) {
   VALIDATE_NO_RV(Can_ConfigPtr != 0, 1, CAN_E_UNINIT);
-  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
+  FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
   uint32_t ifr = regs->IFRL & Can_ConfigPtr->controller[Controller].txisrmask;
   regs->IFRL = ifr;
   int8_t msgBox;
@@ -723,7 +727,7 @@ void Can_Arc_MainFunction_Write( uint8 controller ) {
 // called from can_mainfunction_read, service id 8
 void Can_Arc_MainFunction_Read( uint8 controller ) {
   VALIDATE_NO_RV(Can_ConfigPtr != 0, 8, CAN_E_UNINIT);
-  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
+  FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
   uint32_t ifr = regs->IFRL & Can_ConfigPtr->controller[Controller].rxisrmask;
   regs->IFRL = ifr;
   int8_t msgBox;
@@ -745,7 +749,7 @@ void Can_Arc_MainFunction_Read( uint8 controller ) {
 // called from can_mainfunction_BusOff, service id 9
 void Can_Arc_BusOff( uint8 controller ) {
   VALIDATE_NO_RV(Can_ConfigPtr != 0, 9, CAN_E_UNINIT);
-  FlexCanT *regs = Can_ConfigPtr->controller[Controller].CanControllerBaseAddress;
+  FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
   struct ESR esr = regs->ESR.B
   if(regs->ESR.B.BOFFINT) {
     // busOff, set stopped mode

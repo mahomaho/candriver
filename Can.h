@@ -6,7 +6,6 @@
 #include "Can_GeneralTypes.h"
 #include "Can_Cfg.h"
 
-//#define CAN_MODULE_ID			    MODULE_ID_CAN
 #define CAN_AR_RELEASE_MAJOR_VERSION  4
 #define CAN_AR_RELEASE_MINOR_VERSION  0
 ///todo verify versions of other modules
@@ -60,17 +59,10 @@ typedef const struct
   uint8 CanControllerSyncJumpWidth;
 }Can_ControllerBaudrateConfigType;
 
-struct FlexCan;
-typedef volatile struct FlexCan FlexCanT;
-
 typedef struct
 {
   /// Default baud rate and timing parameters for controller
   Can_ControllerBaudrateConfigType CanControllerBaudrateConfig;
-  /// Can controller base address, see ref manual for correct value
-  FlexCanT *CanControllerBaseAddress;
-  /// set to oscillator clock freq
-  uint32 CanCpuClock;
   /// set bit to 1 if msgBox used for tx, msbBox 0 - 31
   uint32 txisrmask;
   /// set bit to 1 if msgBox used for rx, msbBox 0 - 31
