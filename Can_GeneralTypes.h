@@ -43,4 +43,49 @@ struct Can_PduType {
 	uint8		length;
 };
 
+typedef enum {
+	/** Transceiver mode NORMAL */
+  CANTRCV_TRCVMODE_NORMAL = 0,
+  /** Transceiver mode STANDBY */
+  CANTRCV_TRCVMODE_STANDBY,
+  /** Transceiver mode SLEEP */
+  CANTRCV_TRCVMODE_SLEEP
+} CanTrcv_TrcvModeType ;
+
+typedef enum {
+  /** Due to an error wake up reason was not detected.
+   *  This value may only be reported when error was
+   *  reported to DEM before. */
+	CANTRCV_WU_ERROR = 0,
+	/** The transceiver does not support any information
+	 *  for the wakeup reason. */
+	CANTRCV_WU_NOT_SUPPORTED,
+	/** The transceiver has detected, that the network has
+	 *  caused the wake up of the ECU */
+	CANTRCV_WU_BY_BUS,
+	/** The transceiver has detected a wake-up event at
+	 *  one of the transceiver's pins (not at the CAN bus). */
+	CANTRCV_WU_BY_PIN,
+	/** The transceiver detected, that the network has woken
+	 *  the ECU via a request to NORMAL mode */
+	CANTRCV_WU_INTERNALLY,
+	/** The transceiver has detected, that the "wake up"
+	 *  is due to an ECU reset */
+	CANTRCV_WU_RESET,
+	/** The transceiver has detected, that the "wake up"
+	 *  is due to an ECU reset after power on. */
+	CANTRCV_WU_POWER_ON
+} CanTrcv_TrcvWakeupReasonType;
+
+typedef enum {
+  /** The notification for wakeup events is enabled
+   *  on the addressed network. */
+	CANTRCV_WUMODE_ENABLE = 0,
+	/** The notification for wakeup events is disabled
+	 *  on the addressed network. */
+	CANTRCV_WUMODE_DISABLE,
+	/** A stored wakeup event is cleared on the addressed network */
+	CANTRCV_WUMODE_CLEAR
+} CanIf_TrcvWakeupModeType;
+
 #endif // CAN_GENERAL_TYPES

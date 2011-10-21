@@ -19,12 +19,6 @@
 /// reference to the oscillator clock freq value
 #define CAN_CPU_CLOCK_REFERENCE		  (uint32*)&oscillatorClockFreq
 
-/// Bus off handling
-#define CAN_BUSOFF_PROCESSING         INTERRUPT  // INTERRUPT/POLLING
-/// Rx handling
-#define CAN_RX_PROCESSING             INTERRUPT
-/// Tx handling
-#define CAN_TX_PROCESSING             INTERRUPT
 /// base address for the can controller module
 void Can_Arc_Write( Can_HwHandleType hth ); // called either from Can_MainFunction_Write or isr
 void Can_Arc_Read( Can_HwHandleType hrh );  // called either from Can_MainFunction_Read or isr
