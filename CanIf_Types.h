@@ -104,7 +104,35 @@ typedef enum {
 	
 } CanIf_NotifStatusType;
 
+// för buffered tx
+
 typedef struct {
+	CanId id;
+	dlc;
+	uint8 controller;
+	hohType hth;
+	i_PduId; // att använda i callout functionen, kan vara ipdu, npduid eller valfri pduid type??
+	void(*txConfirmFunction)(asdf);
+} CanIf_TxLPduConfigType;
+
+typedef struct {
+	CanId id;
+	i_PduId; // att använda i callout functionen, kan vara ipdu, npduid eller valfri pduid type
+	dlc;
+//	uint8 controller;
+//	hohType hrhId;
+	void(*rxIndFunction)(asdf);
+} CanIf_RxLPduConfigType;
+
+typedef struct {
+	l_pduIdFirst; // multiple lpdus sharing hrh must have pduid in sequense
+	///todo is this ok limitation to cope with postbuild requirements?
+	numLpdus; // 0 means fullcan, no filtering
+} CanIf_HrHConfigType;
+
+typedef struct {
+	CanIf_TxLPduConfigType txLpduCfg[CANIF_NUM_TX_LPDU_ID];
 } CanIf_ConfigType;
+
 #endif /*CANIF_TYPES_H_*/
 /** @} */

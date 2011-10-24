@@ -378,7 +378,7 @@ void Can_Init( const Can_ConfigType *config )
   #endif
 	
   }
-  // initialize the hoh's
+  // initialize the hrh's
   for(int i = 0; i < CAN_NUM_HRH; i++) {
     FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[Config->hrh[i].controller];
 	bool IDE = (Config->hrh[i].id & 0x80000000) != 0;
@@ -390,6 +390,7 @@ void Can_Init( const Can_ConfigType *config )
 	// set handle to hrh handle id to be used in rx callback
 	controllerData[Config->hrh[i].msgBox][Config->hrh[i].controller].handle = i;
   }
+  // ... and the hth's
   for(int i = 0; i < CAN_NUM_HTH; i++) {
     FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[Config->hth[i].controller];
 	bool IDE = (Config->hth[i].id & 0x80000000) != 0;
@@ -397,7 +398,7 @@ void Can_Init( const Can_ConfigType *config )
 	regs->BUF[Config->hth[i].msgBox].ID.R = id;
 	// set code to 1000 for idle tx buffer
 	struct CS cs = {.IDE = IDE, .CODE = 0x8, .SRR = 1};
-	regs->BUF[Config->hrh[i].msgBox].CS.R = cs;
+	regs->BUF[Config->hth[i].msgBox].CS.R = cs;
 	// set id to -1 to indicate empty tx buffer
 	controllerData[Config->hth[i].msgBox][Config->hth[i].controller].id = -1;
   }
@@ -579,8 +580,8 @@ Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
 {
 	//validate not in CAN_UNINIT mode
 	VALIDATE(Can_ConfigPtr != 0, 6, CAN_E_UNINIT);
-	VALIDATE(hth < NUM_OF_HOHS &&
-		Can_ConfigPtr->hoh[hth].controller].canObjectType == CAN_OBJECT_TYPE_TRANSMIT, 6, CAN_E_PARAM_HANDLE);
+	VALIDATE(hth < NUM_OF_HTHS &&
+		Can_ConfigPtr->hth[hth].controller].canObjectType == CAN_OBJECT_TYPE_TRANSMIT, 6, CAN_E_PARAM_HANDLE);
 	VALIDATE(pduInfo != 0, 6, CAN_E_PARAM_POINTER);
 	VALIDATE(pduInfo->len <= 8, 6, CAN_E_PARAM_DLC);
 	bool IDE = (pduInfo->ID & 0x80000000) != 0;
@@ -590,39 +591,25 @@ Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
 		.SRR = 1, // according to CAN standard
 		.IDE = IDE,
 		.LENGTH = pduInfo->len};
-	FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[Can_ConfigPtr->hoh[hth].controller];
-	for(int i = 0;
-#if CAN_MULTIPLEXED_TRANSMISSION
-		i < Can_ConfigPtr->hoh[hth].numMultiplexed;
-#else
-		i < 1;
-#endif
-		i++)
-	{
-		uint8_t msgBox = Can_ConfigPtr->hoh[hth].msgBox + i;
-		// check if empty
-		bool lock = LockSave();
-		if(controllerData[msgBox][Can_ConfigPtr->hoh[hth].controller].id != -1) {
+	FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[Can_ConfigPtr->hth[hth].controller];
 #if CAN_HW_TRANSMIT_CANCELLATION
-#if CAN_IDENTICAL_ID_CANCELLATION
-			if(regs->BUF[msgBox].ID.R <= id) {
-#else
-			if(regs->BUF[msgBox].ID.R < id) {
+	Can_IdType lowestPrioId = -1;
+	loPrioIdx = 0;
 #endif
+	bool lock = LockSave();
+	for(int i = 0; i < (CAN_MULTIPLEXED_TRANSMISSION? Can_ConfigPtr->hth[hth].numMultiplexed : 1); i++) {
+		uint8_t msgBox = Can_ConfigPtr->hth[hth].msgBox + i;
+		// check if empty
+		if(controllerData[msgBox][Can_ConfigPtr->hth[hth].controller].id != -1) {
+#if CAN_HW_TRANSMIT_CANCELLATION
+			if(regs->BUF[msgBox].ID.R ((CAN_IDENTICAL_ID_CANCELLATION)? <= : < ) lowestPrioId) {
 				// cancel ongoing transmission
-				regs->BUF[msgBox].CS.B.CODE = 0x9;
-				if(regs->BUF[msgBox].CS.B.CODE == 0x9 {
-					// successfully canceled transmission, call callback
-					Can_PduType pduInfo = {.ID, .DATA, .PDUID, .LEN};
-				}
-				LockRestore(lock);
-				CanIf_CancelTxConfirmation(&pduInfo);
-				return CAN_BUSY;
+				lowestPrioId = regs->BUF[msgBox].ID.R;
+				loPrioIdx = i;
 			}
 #endif
-			LockRestore(lock);
 		}else {
-			controllerData[msgBox][Can_ConfigPtr->hoh[hth].controller].id = pduInfo->pduId;
+			controllerData[msgBox][Can_ConfigPtr->hth[hth].controller].id = pduInfo->pduId;
 			// fill in the msgBox
 			memcpy(regs->BUF[msgBox].DATA.B, pduInfo->sdu, 8);
 			regs->BUF[msgBox].ID.R = id;
@@ -631,13 +618,16 @@ Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
 			LockRestore(lock);
 			return CAN_OK;
 		}
-		if(Can_ConfigPtr->hoh[hth].msgBox[i].reg) // check if msg sent
-		{
-			// msg sent, call the callback to inform sw
-			hthData[hth]
-		}
 	}
-	return  AN_BUSY;
+	// 
+#if CAN_HW_TRANSMIT_CANCELLATION
+	// cancel lowest prio id if prio lower than id
+	if(id > lowestPrioId) {
+		regs->BUF[loPrioIdx].CS.B.CODE = 0x9;
+	}
+#endif
+	LockRestore(lock);
+	return  CAN_BUSY;
 }
 
 static void Isr(uint8 controller, uint8 msgBox, FlexCanT *regs) {
@@ -668,6 +658,20 @@ static void Isr(uint8 controller, uint8 msgBox, FlexCanT *regs) {
 	// set PDU to -1 to indicate empty msgbox
 	controllerData[msgBox][controller].id = -1;
 	break;
+#if CAN_HW_TRANSMIT_CANCELLATION
+  case 0x9:
+	// canceled transmission, call callback
+	Can_PduType pduInfo = {
+	  .ID = (cs.IDE)? regs->BUF[msgBox].ID.R + 0x80000000 : regs->BUF[msgBox].ID.B.STD_ID,
+	  .DATA = regs->BUF[msgBox].DATA.B, 
+	  .PDUID = controllerData[msgBox][controller].id, 
+	  .LEN = cs.LENGTH
+	};
+	// set PDU to -1 to indicate empty msgbox
+	controllerData[msgBox][controller].id = -1;
+	CanIf_CancelTxConfirmation(&pduInfo);
+	break;
+#endif
   default:
     // not suppoted code, report to DET
   }

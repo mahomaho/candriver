@@ -34,10 +34,16 @@ typedef enum {
 typedef enum {
 	CAN_HTH_A_1 = 0,
 	CAN_HTH_C_1,
+	NUM_OF_HTHS
+} Can_Arc_HTHType;
+
+
+typedef enum {
 	CAN_HRH_A_1,
 	CAN_HRH_C_1,
-	NUM_OF_HOHS
-} Can_Arc_HwHandleType;
+	NUM_OF_HRHS
+} Can_Arc_HRHType;
+
 
 extern Can_ConfigType Can_config;
 
@@ -54,12 +60,12 @@ static FlexCanT* const CAN_CONTROLLER_BASE_ADDRESS[CAN_NUM_CONTROLLERS] = {
 
 static inline void Can_MainFunction_Write( void )
 {
-	// add all hth without isr
+	// add all controllers without isr
 }
 
 static inline void Can_MainFunction_Read( void )
 {
-	// add all hrh without isr
+	// add all controllers without isr
 }
 
 static inline void Can_MainFunction_BusOff( void )

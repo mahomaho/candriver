@@ -3,6 +3,11 @@
 #include "CanIf_Types.h"
 #include "CanIf_Cfg.h"
 
+#define CANIF_VENDOR_ID          1
+#define CANIF_MODULE_ID          MODULE_ID_CANIF
+#define CANIF_AR_MAJOR_VERSION   4
+#define CANIF_AR_MINOR_VERSION   0
+
 
 /** @name Error Codes */
 ///{
@@ -26,16 +31,17 @@
 #define CANIF_E_INVALID_RXPDUID 		  90
 ///}
 
-void CanIf_Init(const CanIf_ConfigType* ConfigPtr);
+void CanIf_Init(const CanIf_ConfigType* ConfigPtr) {
+}
 
-Std_ReturnType CanIf_SetControllerMode(uint8 ControllerId,
-		CanIf_ControllerModeType ControllerMode);
+Std_ReturnType CanIf_SetControllerMode(uint8 ControllerId, CanIf_ControllerModeType ControllerMode) {
+}
 
-Std_ReturnType CanIf_GetControllerMode(uint8 ControllerId,
-		CanIf_ControllerModeType *ControllerModePtr);
-		
-Std_ReturnType CanIf_Transmit(PduIdType CanTxPduId,
-		const PduInfoType *PduInfoPtr);
+Std_ReturnType CanIf_GetControllerMode(uint8 ControllerId, CanIf_ControllerModeType *ControllerModePtr) {
+}
+
+Std_ReturnType CanIf_Transmit(PduIdType CanTxPduId, const PduInfoType *PduInfoPtr) {
+}
 
 #if CANIF_CANCEL_TRANSMIT_SUPPORT
 Std_ReturnType CanIf_CancelTransmit(PduIdType CanTxPduId);

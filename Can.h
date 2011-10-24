@@ -21,19 +21,10 @@
 #define CAN_E_DATALOST         0x07
 struct CanController;
 
-/** CAN HW object types. */
-typedef enum {
-  CAN_OBJECT_TYPE_NONE,
-  CAN_OBJECT_TYPE_RECEIVE,
-  CAN_OBJECT_TYPE_TRANSMIT,
-} Can_ObjectTypeType;
-
 typedef const struct
 {
 	/// Can id for hoh, msb set if extended ID. ID will be overwritten in case of an hth
 	Can_IdType canId;
-	/// type of object, values from Can_ObjectTypeType
-	uint8 canObjectType; // hth or hrh
 	/// controller idx that this hoh is connected to
 	uint8 controller;
 	/// msgBox number used within the can controller for this hoh
@@ -89,7 +80,8 @@ typedef struct
 typedef const struct
 {
   CanController controller[CAN_NUM_CONTROLLERS];
-  CanHardwareObject hoh[NUM_OF_HOHS];
+  CanHardwareObject hrh[NUM_OF_HRHS];
+  CanHardwareObject hth[NUM_OF_HTHS];
 }attribute((section=.canpostbuild)) Can_ConfigType;
 
 void Can_Init( const Can_ConfigType *Config );
