@@ -1,5 +1,7 @@
 #ifndef CAN_GENERAL_TYPES
 #define CAN_GENERAL_TYPES
+///todo should this file be included here?
+#include "CanIf_Cfg.h"
 
 /// this file shall be developed by the AutoSar BSW integrator, see CAN437
 
@@ -9,7 +11,7 @@ typedef uint32 Can_IdType;
 
 // uint16: if more than 255 hw handles
 // uint8: else
-typedef uint16 Can_HwHandleType;
+typedef CANIF_PUBLIC_HANDLE_TYPE_ENUM Can_HwHandleType;
 
 typedef enum {
 	CAN_T_STOP = 1, // cannot request mode CAN_UNINIT

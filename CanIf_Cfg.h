@@ -15,17 +15,25 @@
 #define CANIF_PUBLIC_READRXPDU_NOTIFY_STATUS_API	STD_ON
 /// Enables the CanIf_GetTxConfirmationState function
 #define CANIF_PUBLIC_TXCONFIRM_POLLING_SUPPORT      STD_ON
+/// Enabled the CanIf_CancelTxConfirmation function
+#define CANIF_CTRLDRV_TX_CANCELLATION				STD_ON
+/// Enables the dlc check for received frames
+#define CANIF_PRIVATE_DLC_CHECK                     STD_ON
+/// Selects type of software filtering, only binary search supported
+#define CANIF_PRIVATE_SOFTWARE_FILTER_TYPE			BINARY
+/// Datatype for hoh ids, uint8 or uint16
+#define CANIF_PUBLIC_HANDLE_TYPE_ENUM				uint16
+/// Enables the tx buffering mechanism
+#define CANIF_PUBLIC_TX_BUFFERING					STD_ON
 
 #define CANIF_VERSION_INFO_API              STD_ON
 #define CANIF_DEV_ERROR_DETECT			    STD_OFF
-#define CANIF_DLC_CHECK                     STD_ON
 #define CANIF_ARC_RUNTIME_PDU_CONFIGURATION	STD_OFF
 #define CANIF_MULITPLE_DRIVER_SUPPORT       STD_OFF  // Not supported
 #define CANIF_READRXPDU_NOTIFY_STATUS_API	STD_OFF  // Not supported
 #define CANIF_SETDYNAMICTXID_API            STD_OFF  // Not supported
 #define CANIF_WAKEUP_EVENT_API			    STD_OFF  // Not supported
 #define CANIF_TRANSCEIVER_API               STD_OFF  // Not supported
-#define CANIF_TRANSMIT_CANCELLATION         STD_OFF  // Not supported
 
 typedef enum {
 	CANIF_RX_LPDU_ID_CanDB_Message_1,

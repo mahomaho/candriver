@@ -18,10 +18,11 @@ typedef struct {
 	dynCanId[CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS];
 #endif
 	struct {
-		nextInQueue; // ptr or L-PDU id?
-//		canid; // slå upp det från lpdu istället?
+#if CANIF_PUBLIC_TX_BUFFERING
+		PduIdType nextInQueue;
 		uint8 data[8];
 		uint8 dlc; // -1 betyder tom buffer
+#endif
 #if CANIF_PUBLIC_READTXPDU_NOTIFY_STATUS_API
 		bool txConfirmed;
 #endif
@@ -73,15 +74,22 @@ Std_ReturnType CanIf_SetControllerMode(uint8 controllerId, CanIf_ControllerModeT
 		}
 		break;
 	case CANIF_CS_STARTED:
-		transition = CAN_T_START;
+		if(controllerData[controllerId].controllerMode == CANIF_CS_SLEEP) {
+			///todo step via WAKEUP
+		} else {
+			transition = CAN_T_START;
+		}
 		break;
 	case CANIF_CS_SLEEP:
-		transition = CAN_T_SLEEP;
+		if(controllerData[controllerId].controllerMode == CANIF_CS_STARTED) {
+			///todo step via stopped
+		} else {
+			transition = CAN_T_SLEEP;
+		}
 		break;
 	default:
 		transition = CAN_T_STOP;
 	}
-
 	if(Can_SetControllerMode(controllerId, transition) == CAN_NOT_OK) {
 		return E_NOT_OK;
 	} else {
@@ -110,9 +118,9 @@ Std_ReturnType CanIf_Transmit(PduIdType canTxPduId,	const PduInfoType *pduInfoPt
 		.swPduHandle = canTxPduId,
 		.length = pduInfoPtr->SduLength
 	};
-#if buffered transmit
+#if CANIF_PUBLIC_TX_BUFFERING
 	bool lock = LockSave();
-	if(lPduData.txLpdu[canTxPduId].dlc == -1) {
+	if(lPduData.txLpdu[canTxPduId].dlc != -1) {
 		// pdu buffer not empty and therefore scheduled to be sent. overwrite data and return
 		lPduData.txLpdu[canTxPduId].dlc = pduInfoPtr->SduLength;
 		memcpy(lPduData.txLpdu[canTxPduId].data, pduInfoPtr->SduDataPtr, pduInfoPtr->SduLength);
@@ -263,14 +271,17 @@ CanIf_NotifStatusType CanIf_GetTxConfirmationState(uint8 controllerId) {
 }
 #endif
 
-
+// service id 19
 void CanIf_TxConfirmation(PduIdType canTxPduId) { // L-PDU id
-#if buffered transmit
+	VALIDATE_NO_RV(CanIf_ConfigPtr != 0, 19, CANIF_E_UNINIT);
+	VALIDATE_NO_RV(canTxPduId < CANIF_NUM_TX_LPDU_ID, 19, CANIF_E_PARAM_LPDU);
+#if CANIF_PUBLIC_TX_BUFFERING
 #if CANIF_PUBLIC_TXCONFIRM_POLLING_SUPPORT
 	controllerData[CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].transmitConfirmedSinceLastStart = CANIF_TX_RX_NOTIFICATION;
 #endif
 	hth = CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].hth;
 	bool lock = LockSave();
+	// send next in queue if present. Check if queue empty:
 	Can_HwHandleType lpdu = driverUnit.hth[hth].nextInQueue;
 	if(lpdu != -1) {
 		// send next
@@ -295,8 +306,8 @@ void CanIf_TxConfirmation(PduIdType canTxPduId) { // L-PDU id
 	lPduData.txLpdu[canTxPduId].txConfirmed = CANIF_TX_RX_NOTIFICATION;
 #endif
 	// call eventual callback
-	if(CanIf_ConfigPtr->txLpduCfg[canTxPduId].callback) {
-		(*CanIf_ConfigPtr->txLpduCfg[canTxPduId].callback)(CanIf_ConfigPtr->txLpduCfg[canTxPduId].i_PduId);
+	if(CanIf_ConfigPtr->txLpduCfg[canTxPduId].canIfTxPduUserTxConfirmationName) {
+		(*CanIf_ConfigPtr->txLpduCfg[canTxPduId].canIfTxPduUserTxConfirmationName)(CanIf_ConfigPtr->txLpduCfg[canTxPduId].i_PduId);
 	}
 }
 
@@ -308,6 +319,17 @@ void CanIf_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc, co
 
 static void RxLPduReceived(PduId lpdu, Can_IdType canId, uint8 canDlc, const uint8* canSduPtr) {
 	// store in buffer
+#if CANIF_PRIVATE_DLC_CHECK
+	// check if dlc check is enabled
+	if(CanIf_ConfigPtr->rxLpduCfg[lpdu].dlc) {
+		// dlc check is enabled, verify dlc
+		if(canDlc < CanIf_ConfigPtr->rxLpduCfg[lpdu].dlc) {
+			///todo report dlc error CANIF_E_INVALID_DLC to DEM Dem_ReportErrorStatus
+			return;
+		}
+		canDlc = CanIf_ConfigPtr->rxLpduCfg[lpdu].dlc;
+	}
+#endif
 #if CANIF_PUBLIC_READRXPDU_DATA_API
 	bool lock = LockSave();
 	lPduData.rxLpdu[lpdu].dlc = canDlc;
@@ -346,8 +368,9 @@ void CanIf_Arc_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc
 	}
 }
 
+#if CANIF_CTRLDRV_TX_CANCELLATION
 void CanIf_CancelTxConfirmation(const Can_PduType* pduInfoPtr) {
-#if buffered transmit
+#if CANIF_PUBLIC_TX_BUFFERING
 	bool lock = LockSave();
 	if(lPduData.txLpdu[pduInfoPtr->swPduHandle].dlc != -1) {
 		// pdu buffer not empty: throw old data and return
@@ -391,16 +414,26 @@ void CanIf_CancelTxConfirmation(const Can_PduType* pduInfoPtr) {
 	// do nothing
 #endif
 }
+#endif
 
-void CanIf_ControllerBusOff(uint8 Controller) {
+void CanIf_ControllerBusOff(uint8 controller) {
 	// store the new mode
 	controllerData[controller].controllerMode = CANIF_CS_STOPPED;
+#if CANIF_PUBLIC_TX_BUFFERING
 	// reset all pending tx requests
 	for(PduIdType i = 0; i < CANIF_NUM_TX_LPDU_ID; i++) {
 		if(CanIf_ConfigPtr->txLpduCfg[i].controller == controller) {
+			PduIdType nextInQueue = driverUnit.hth[CanIf_ConfigPtr->txLpduCfg[i].hth].nextInQueue;
+			// set nextInQueue to indicate empty queue
 			driverUnit.hth[CanIf_ConfigPtr->txLpduCfg[i].hth].nextInQueue = -1;
+			while(nextInQueue != -1) {
+				// set dlc to -1 to indicate empty buffer
+				lPduData.txLpdu[nextInQueue].dlc = -1;
+				nextInQueue = lPduData.txLpdu[nextInQueue].nextInQueue;
+			}
 		}
 	}
+#endif
 	// call ev callback
 	if(CanIf_ConfigPtr->controller[controller].busOffFunction) {
 		(*CanIf_ConfigPtr->controller[controller].busOffFunction)(controller);
@@ -410,12 +443,22 @@ void CanIf_ControllerModeIndication(uint8 controller, CanIf_ControllerModeType c
 	// store the new mode
 	controllerData[controller].controllerMode = controllerMode;
 	if(controllerMode == CANIF_CS_STOPPED) {
-		// stopped mode reached, disable all pending tx requests
+		// stopped mode reached
+#if CANIF_PUBLIC_TX_BUFFERING
+		// disable all pending tx requests
 		for(PduIdType i = 0; i < CANIF_NUM_TX_LPDU_ID; i++) {
 			if(CanIf_ConfigPtr->txLpduCfg[i].controller == controller) {
+				PduIdType nextInQueue = driverUnit.hth[CanIf_ConfigPtr->txLpduCfg[i].hth].nextInQueue;
+				// set nextInQueue to indicate empty queue
 				driverUnit.hth[CanIf_ConfigPtr->txLpduCfg[i].hth].nextInQueue = -1;
+				while(nextInQueue != -1) {
+					// set dlc to -1 to indicate empty buffer
+					lPduData.txLpdu[nextInQueue].dlc = -1;
+					nextInQueue = lPduData.txLpdu[nextInQueue].nextInQueue;
+				}
 			}
 		}
+#endif
 	}
 #if CANIF_PUBLIC_TXCONFIRM_POLLING_SUPPORT
 	 else if(controllerMode == CANIF_CS_STARTED) {

@@ -9,9 +9,11 @@ void CanIf_RxIndication(
 	const uint8* CanSduPtr 
 );
 
+#if CANIF_CTRLDRV_TX_CANCELLATION
 void CanIf_CancelTxConfirmation(
     const Can_PduType* PduInfoPtr
 );
+#endif
 
 void CanIf_ControllerBusOff( 
     uint8 Controller

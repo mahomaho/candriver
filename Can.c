@@ -473,8 +473,8 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
 	// clear eventual pending tx requests, disable interrupts to ensure no simultaneous transmit
 	bool lock = LockSave();
 	for(int i = 0; i < CAN_NUM_MSGBOXES; i++) {
-		if(regs->BUF[i].CS.B.CODE == 0xC) {
-			// pending tx request, clear it and set id to -1
+		if(regs->BUF[i].CS.B.CODE & 0x8) {
+			// tx buffer, set it to idle and set id to -1
 			regs->BUF[i].CS.B.CODE = 0x8;
 			controllerData[i][controller].id = -1;
 		}

@@ -113,7 +113,7 @@ typedef struct {
 	uint8 controller;
 	hohType hth;
 	i_PduId; // att använda i callout functionen, kan vara ipdu, npduid eller valfri pduid type??
-	void(*txConfirmFunction)(asdf);
+	void(*canIfTxPduUserTxConfirmationName)(asdf);
 } CanIf_TxLPduConfigType;
 
 typedef struct {
