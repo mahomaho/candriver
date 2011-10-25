@@ -39,58 +39,59 @@ typedef enum {
  *  transmit or receive activity. Communication direction (transmission and/or
  *  reception) of the channel can be controlled separately or together by upper
  *  layers. */
+// value is bitcoded: bit 0 = rx online, bit 1 = tx online, bit 2 = tx notification online, byte 1 is mask for affected bits
 typedef enum {
 	/** Channel shall be set to the offline mode
 	 *  => no transmission and reception */
-	CANIF_SET_OFFLINE = 0,
+	CANIF_SET_OFFLINE = 0x700,
 	
 	/** Receive path of the corresponding channel
 	 *  shall be disabled */
-	CANIF_SET_RX_OFFLINE,
+	CANIF_SET_RX_OFFLINE = 0x100,
 
 	/** Receive path of the corresponding channel
 	 *  shall be enabled */
-	CANIF_SET_RX_ONLINE,
+	CANIF_SET_RX_ONLINE = 0x101,
 	
 	/** Transmit path of the corresponding channel
 	 *  shall be disabled */
-	CANIF_SET_TX_OFFLINE,
+	CANIF_SET_TX_OFFLINE = 0x600,
 	
 	/** Transmit path of the corresponding channel
 	 *  shall be enabled */
-	CANIF_SET_TX_ONLINE,
+	CANIF_SET_TX_ONLINE = 0x606,
 	
 	/** Channel shall be set to online mode
 	 *  => full operation mode */
-	CANIF_SET_ONLINE,
+	CANIF_SET_ONLINE = 0x707,
 	
 	/** Transmit path of the corresponding channel
 	 *  shall be set to the offline active mode
 	 *  => notifications are processed but transmit
 	 *  requests are blocked. */
-	CANIF_SET_TX_OFFLINE_ACTIVE
+	CANIF_SET_TX_OFFLINE_ACTIVE = 0x604
 } CanIf_PduSetModeType;
 
-
+// value is bitcoded: bit 0 = rx online, bit 1 = tx online, bit 2 = tx notification online
 typedef enum {
 	/** Channel is in the offline mode ==> no transmission or reception */
   CANIF_GET_OFFLINE = 0,
   /** Receive path of the corresponding channel is enabled and
    *  transmit path is disabled */
-  CANIF_GET_RX_ONLINE,
+  CANIF_GET_RX_ONLINE = 0x1,
   /** Transmit path of the corresponding channel is enabled and
    *  receive path is disabled */
-  CANIF_GET_TX_ONLINE,
+  CANIF_GET_TX_ONLINE = 0x6,
   /** Channel is in the online mode ==> full operation mode */
-  CANIF_GET_ONLINE,
+  CANIF_GET_ONLINE = 0x7,
   /** Transmit path of the corresponding channel is in
    *  the offline mode ==> transmit notifications are processed but
    *  transmit requests are blocked. The receiver path is disabled. */
-  CANIF_GET_OFFLINE_ACTIVE,
+  CANIF_GET_OFFLINE_ACTIVE = 0x4,
   /** Transmit path of the corresponding channel is in the offline
    *  active mode ==> transmit notifications are processed but transmit
    *  requests are blocked. The receive path is enabled. */
-  CANIF_GET_OFFLINE_ACTIVE_RX_ONLINE
+  CANIF_GET_OFFLINE_ACTIVE_RX_ONLINE = 0x5
 	
 } CanIf_PduGetModeType;
 
@@ -131,7 +132,15 @@ typedef struct {
 } CanIf_HrHConfigType;
 
 typedef struct {
+	void(*modeIndFunction)(asdf);
+	void(*busOffFunction)(asdf);
+} CanIf_ControllerConfigType;
+
+typedef struct {
 	CanIf_TxLPduConfigType txLpduCfg[CANIF_NUM_TX_LPDU_ID];
+	CanIf_RxLPduConfigType rxLpduCfg[CANIF_NUM_RX_LPDU_ID];
+	///todo is this really postbuild? Otherwise should this not be here
+	CanIf_ControllerConfigType controller[CANIF_CHANNEL_CNT];
 } CanIf_ConfigType;
 
 #endif /*CANIF_TYPES_H_*/

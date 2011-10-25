@@ -47,16 +47,16 @@ Std_ReturnType CanIf_Transmit(PduIdType CanTxPduId, const PduInfoType *PduInfoPt
 Std_ReturnType CanIf_CancelTransmit(PduIdType CanTxPduId);
 #endif
 
-#if ( CANIF_READRXPDU_DATA_API == STD_ON )
+#if ( CANIF_PUBLIC_READRXPDU_DATA_API == STD_ON )
 Std_ReturnType CanIf_ReadRxPduData(PduIdType CanRxPduId,
 		PduInfoType *PduInfoPtr);
 #endif
 
-#if ( CANIF_READTXPDU_NOTIFY_STATUS_API == STD_ON )
+#if ( CANIF_PUBLIC_READTXPDU_NOTIFY_STATUS_API == STD_ON )
 CanIf_NotifStatusType CanIf_ReadTxNotifStatus(PduIdType CanTxPduId);
 #endif
 
-#if ( CANIF_READTXPDU_NOTIFY_STATUS_API == STD_ON )
+#if ( CANIF_PUBLIC_READRXPDU_NOTIFY_STATUS_API == STD_ON )
 CanIf_NotifStatusType CanIf_ReadRxNotifStatus(PduIdType CanRxPduId);
 #endif
 

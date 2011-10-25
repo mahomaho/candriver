@@ -12,17 +12,17 @@ typedef uint32 Can_IdType;
 typedef uint16 Can_HwHandleType;
 
 typedef enum {
+	CAN_T_STOP = 1, // cannot request mode CAN_UNINIT
 	CAN_T_START,
-	CAN_T_STOP,
 	CAN_T_SLEEP,
 	CAN_T_WAKEUP
 } Can_StateTransitionType;
 
 typedef enum {
 	CANIF_CS_UNINIT = 0,
-	CANIF_CS_SLEEP,
-	CANIF_CS_STARTED,
 	CANIF_CS_STOPPED
+	CANIF_CS_STARTED,
+	CANIF_CS_SLEEP,
 } CanIf_ControllerModeType;
 
 typedef enum {
