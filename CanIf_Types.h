@@ -113,7 +113,7 @@ typedef struct {
 	uint8 controller;
 	hohType hth;
 	i_PduId; // att använda i callout functionen, kan vara ipdu, npduid eller valfri pduid type??
-	void(*canIfTxPduUserTxConfirmationName)(asdf);
+	void(*user_TxConfirmation)(PduIdType txPduId);
 } CanIf_TxLPduConfigType;
 
 typedef struct {
@@ -122,7 +122,7 @@ typedef struct {
 	dlc;
 //	uint8 controller;
 //	hohType hrhId;
-	void(*rxIndFunction)(asdf);
+	void(*user_RxIndication)(PduIdType rxPduId, const PduInfoType* pduInfoPtr);
 } CanIf_RxLPduConfigType;
 
 typedef struct {
@@ -132,8 +132,8 @@ typedef struct {
 } CanIf_HrHConfigType;
 
 typedef struct {
-	void(*modeIndFunction)(asdf);
-	void(*busOffFunction)(asdf);
+	void(*User_ControllerModeIndication)(uint8 controllerId, CanIf_ControllerModeType controllerMode);
+	void(*user_ControllerBusOff)(uint8 controllerId);
 } CanIf_ControllerConfigType;
 
 typedef struct {

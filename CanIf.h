@@ -3,32 +3,35 @@
 #include "CanIf_Types.h"
 #include "CanIf_Cfg.h"
 
-#define CANIF_VENDOR_ID          1
-#define CANIF_MODULE_ID          MODULE_ID_CANIF
-#define CANIF_AR_MAJOR_VERSION   4
-#define CANIF_AR_MINOR_VERSION   0
-
+#define CANIF_VENDOR_ID                   1
+#define CANIF_MODULE_ID                   MODULE_ID_CANIF
+#define CANIF_AR_RELEASE_MAJOR_VERSION    4
+#define CANIF_AR_RELEASE_MINOR_VERSION    0
+#define CANIF_AR_RELEASE_REVISION_VERSION 2
+#define CANIF_SW_MAJOR_VERSION            0
+#define CANIF_SW_MINOR_VERSION            0
+#define CANIF_SW_PATCH_VERSION            0
 
 /** @name Error Codes */
 ///{
-#define CANIF_E_PARAM_CANID		      10 
-#define CANIF_E_PARAM_DLC			      11  
-#define CANIF_E_PARAM_HRH			      12 
-#define CANIF_E_PARAM_CHANNEL		    13  
-#define CANIF_E_PARAM_CONTROLLER	  14  
-#define CANIF_E_PARAM_WAKEUPSOURCE	15  
+#define CANIF_E_PARAM_CANID		            10 
+#define CANIF_E_PARAM_DLC			            11  
+#define CANIF_E_PARAM_HRH			            12 
+#define CANIF_E_PARAM_CHANNEL		          13  
+#define CANIF_E_PARAM_CONTROLLER	        14  
+#define CANIF_E_PARAM_WAKEUPSOURCE	      15  
 
-#define CANIF_E_PARAM_HTH             17 
-#define CANIF_E_PARAM_LPDU            18
-#define CANIF_E_PARAM_CONTROLLER_MODE 19
+#define CANIF_E_PARAM_HTH                 17 
+#define CANIF_E_PARAM_LPDU                18
+#define CANIF_E_PARAM_CONTROLLER_MODE     19
 
-#define CANIF_E_PARAM_POINTER 			  20
-#define CANIF_E_UNINIT 				        30
-#define CANIF_E_NOK_NOSUPPORT			    40
-#define CANIF_TRCV_E_TRCV_NOT_STANDBY	60
-#define CANIF_TRCV_E_TRCV_NOT_NORMAL	70
-#define CANIF_E_INVALID_TXPDUID		    80
-#define CANIF_E_INVALID_RXPDUID 		  90
+#define CANIF_E_PARAM_POINTER 			      20
+#define CANIF_E_UNINIT 				            30
+#define CANIF_E_NOK_NOSUPPORT             40
+#define CANIF_TRCV_E_TRCV_NOT_STANDBY	    60
+#define CANIF_TRCV_E_TRCV_NOT_NORMAL	    70
+#define CANIF_E_INVALID_TXPDUID		        80
+#define CANIF_E_INVALID_RXPDUID 		      90
 ///}
 
 void CanIf_Init(const CanIf_ConfigType* ConfigPtr) {
@@ -72,8 +75,10 @@ void CanIf_SetDynamicTxId(PduIdType CanTxPduId, Can_IdType CanId);
 
 Std_ReturnType CanIf_SetTrcvMode( uint8 TransceiverId, CanTrcv_TrcvModeType TransceiverMode );
 Std_ReturnType CanIf_GetTrcvMode( uint8 TransceiverId, CanTrcv_TrcvModeType* TransceiverModePtr );
+#if CANIF_TRCV_WAKEUP_SUPPORT
 Std_ReturnType CanIf_GetTrcvWakeupReason( uint8 TransceiverId, CanTrcv_TrcvWakeupReasonType* TrcvWuReasonPtr );
 Std_ReturnType CanIf_SetTrcvWakeupMode( uint8 TransceiverId, CanTrcv_TrcvWakeupModeType TrcvWakeupMode );
+#endif
 
 #if CANIF_CTRL_WAKEUP_SUPPORT || CANIF_TRCV_WAKEUP_SUPPORT
 Std_ReturnType CanIf_CheckWakeup( EcuM_WakeupSourceType WakeupSource );

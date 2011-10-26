@@ -5,6 +5,8 @@
 /// Max number of dynamic tx L-PDUs
 #define CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS	0
 
+/// Enabled version info
+#define CANIF_VERSION_INFO_API                    STD_ON
 /// Enables the  CanIf_ReadRxPduData function
 #define CANIF_PUBLIC_READRXPDU_DATA_API		STD_ON
 /// Enables the CanIf_CancelTransmit function
@@ -14,26 +16,28 @@
 /// Enables the CanIf_ReadRxNotifStatus function
 #define CANIF_PUBLIC_READRXPDU_NOTIFY_STATUS_API	STD_ON
 /// Enables the CanIf_GetTxConfirmationState function
-#define CANIF_PUBLIC_TXCONFIRM_POLLING_SUPPORT      STD_ON
+#define CANIF_PUBLIC_TXCONFIRM_POLLING_SUPPORT    STD_ON
 /// Enabled the CanIf_CancelTxConfirmation function
-#define CANIF_CTRLDRV_TX_CANCELLATION				STD_ON
+#define CANIF_CTRLDRV_TX_CANCELLATION				      STD_ON
 /// Enables the dlc check for received frames
-#define CANIF_PRIVATE_DLC_CHECK                     STD_ON
+#define CANIF_PRIVATE_DLC_CHECK                   STD_ON
 /// Selects type of software filtering, only binary search supported
-#define CANIF_PRIVATE_SOFTWARE_FILTER_TYPE			BINARY
+#define CANIF_PRIVATE_SOFTWARE_FILTER_TYPE			  BINARY
 /// Datatype for hoh ids, uint8 or uint16
-#define CANIF_PUBLIC_HANDLE_TYPE_ENUM				uint16
+#define CANIF_PUBLIC_HANDLE_TYPE_ENUM				      uint16
 /// Enables the tx buffering mechanism
-#define CANIF_PUBLIC_TX_BUFFERING					STD_ON
+#define CANIF_PUBLIC_TX_BUFFERING					        STD_ON
+/// Enables use of multiple can driver units
+#define CANIF_PUBLIC_MULTIPLE_DRV_SUPPORT			    STD_OFF // Not supported
+/// Enables DET error reports
+#define CANIF_DEV_ERROR_DETECT			              STD_OFF
+/// Enabled the CanIf_CheckValidation function
+#define CANIF_PUBLIC_WAKEUP_CHECK_VALIDATION_API  STD_OFF // not supported
+/// Defines if a can controller has wakeup support
+#define CANIF_CTRL_WAKEUP_SUPPORT                 STD_OFF // not supported
+/// Defines if a can tranceiver has wakeup support
+#define CANIF_TRCV_WAKEUP_SUPPORT                 STD_OFF // not supported
 
-#define CANIF_VERSION_INFO_API              STD_ON
-#define CANIF_DEV_ERROR_DETECT			    STD_OFF
-#define CANIF_ARC_RUNTIME_PDU_CONFIGURATION	STD_OFF
-#define CANIF_MULITPLE_DRIVER_SUPPORT       STD_OFF  // Not supported
-#define CANIF_READRXPDU_NOTIFY_STATUS_API	STD_OFF  // Not supported
-#define CANIF_SETDYNAMICTXID_API            STD_OFF  // Not supported
-#define CANIF_WAKEUP_EVENT_API			    STD_OFF  // Not supported
-#define CANIF_TRANSCEIVER_API               STD_OFF  // Not supported
 
 typedef enum {
 	CANIF_RX_LPDU_ID_CanDB_Message_1,

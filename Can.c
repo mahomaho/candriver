@@ -344,15 +344,14 @@ typedef enum {
 
 
 static const Can_ConfigType *Can_ConfigPtr = 0;
-static uint8 CanIsrDisableCnt[CAN_NUM_CONTROLLERS] = 0;
+static uint8 CanIsrDisableCnt[CAN_NUM_CONTROLLERS] = {0};
 static union {PduIdType id; Can_HwHandleType handle} controllerData[CAN_NUM_MSGBOXES][CAN_NUM_CONTROLLERS];
-
+static uint8 pendingModeChange[CAN_NUM_CONTROLLERS] = {0};
 // id 0
 void Can_Init( const Can_ConfigType *config )
 {
   VALIDATE_NO_RV(Can_ConfigPtr == 0, 0, CAN_E_TRANSITION);
   VALIDATE_NO_RV(config != 0, 0, CAN_E_PARAM_POINTER);
-  Can_ConfigPtr = config;
   // initialize each controller
   for(int i = 0; i < CAN_NUM_CONTROLLERS; i++)
   {
@@ -381,28 +380,28 @@ void Can_Init( const Can_ConfigType *config )
   // initialize the hrh's
   for(int i = 0; i < CAN_NUM_HRH; i++) {
     FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[Config->hrh[i].controller];
-	bool IDE = (Config->hrh[i].id & 0x80000000) != 0;
-	uint32_t id = IDE? Config->hrh[i].id : Config->hrh[i].id << 18;
-	regs->BUF[Config->hrh[i].msgBox].ID.R = id;
-	// set CODE to 6 for active RX buffer
-	struct CS cs = {.IDE = IDE, .CODE = 0x6};
-	regs->BUF[Config->hrh[i].msgBox].CS.R = cs;
-	// set handle to hrh handle id to be used in rx callback
-	controllerData[Config->hrh[i].msgBox][Config->hrh[i].controller].handle = i;
+    bool IDE = (Config->hrh[i].id & 0x80000000) != 0;
+    uint32_t id = IDE? Config->hrh[i].id : Config->hrh[i].id << 18;
+    regs->BUF[Config->hrh[i].msgBox].ID.R = id;
+    // set CODE to 6 for active RX buffer
+    struct CS cs = {.IDE = IDE, .CODE = 0x6};
+    regs->BUF[Config->hrh[i].msgBox].CS.R = cs;
+    // set handle to hrh handle id to be used in rx callback
+    controllerData[Config->hrh[i].msgBox][Config->hrh[i].controller].handle = i;
   }
   // ... and the hth's
   for(int i = 0; i < CAN_NUM_HTH; i++) {
     FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[Config->hth[i].controller];
-	bool IDE = (Config->hth[i].id & 0x80000000) != 0;
-	uint32_t id = IDE? Config->hth[i].id : Config->hth[i].id << 18;
-	regs->BUF[Config->hth[i].msgBox].ID.R = id;
-	// set code to 1000 for idle tx buffer
-	struct CS cs = {.IDE = IDE, .CODE = 0x8, .SRR = 1};
-	regs->BUF[Config->hth[i].msgBox].CS.R = cs;
-	// set id to -1 to indicate empty tx buffer
-	controllerData[Config->hth[i].msgBox][Config->hth[i].controller].id = -1;
+    bool IDE = (Config->hth[i].id & 0x80000000) != 0;
+    uint32_t id = IDE? Config->hth[i].id : Config->hth[i].id << 18;
+    regs->BUF[Config->hth[i].msgBox].ID.R = id;
+    // set code to 1000 for idle tx buffer
+    struct CS cs = {.IDE = IDE, .CODE = 0x8, .SRR = 1};
+    regs->BUF[Config->hth[i].msgBox].CS.R = cs;
+    // set id to -1 to indicate empty tx buffer
+    controllerData[Config->hth[i].msgBox][Config->hth[i].controller].id = -1;
   }
-  
+  Can_ConfigPtr = config;
 }
 
 // service id 2
@@ -462,12 +461,13 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
     BCC = CAN_ENABLE_INDIVIDUAL_MASK, // control backwards compatibility
     AEN = 1, // enable abort of tx msgs without isr loss
     MAXMB = 63}; // enable 64 message buffers
+  // clear eventual pending mode change
+  pendingModeChange[controller] = 0;
   switch(transition)
   {
   case CAN_T_START:
     // validate stopped mode
-    VALIDATE(regs->MCR.B.FRZ == 1 &&
-	  regs->MCR.B.MDIS == 0, 3, CAN_E_TRANSITION);
+    VALIDATE(regs->MCR.B.FRZACK == 1, 3, CAN_E_TRANSITION);
 	// set start mode
 	mcr.FRZ = 0;
 	// clear eventual pending tx requests, disable interrupts to ensure no simultaneous transmit
@@ -498,36 +498,35 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
 	int32 timeout = GetCounterValue() + CAN_TIMEOUT_DURATION;
 	regs->MCR.B = mcr;
 	do {
-	  if(regs->MCR.B.) {
+	  if(regs->MCR.B.FRZACK) {
 	    // state has changed, report to CanIf and return
 		CanIf_ControllerModeIndication(controller, CANIF_CS_STOPPED);
 		return;
 	  }
 	} while(GetCounterValue() < timeout);
 	// failed to reach stoped mode before timeout, set flag to inform Can_MainFunction_Mode to continue to poll flag
-	todo
+	pendingModeChange[controller] = CAN_T_STOP;
     break;
   case CAN_T_SLEEP:
     // validate stopped mode
-    VALIDATE(regs->MCR.B.FRZ == 1 &&
-	  regs->MCR.B.MDIS == 0, 3, CAN_E_TRANSITION);
+    VALIDATE(regs->MCR.B.FRZACK == 1, 3, CAN_E_TRANSITION);
     mcr.MDIS = 1;
 	// set max time for state transition
 	int32 timeout = GetCounterValue() + CAN_TIMEOUT_DURATION;
 	regs->MCR.B = mcr;
 	do {
-	  if(regs->MCR.B.) {
+	  if(regs->MCR.B.LPMACK) {
 	    // state has changed, report to CanIf and return
 		CanIf_ControllerModeIndication(controller, CANIF_CS_SLEEP);
 		return;
 	  }
 	} while(GetCounterValue() < timeout);
 	// failed to reach sleep mode before timeout, set flag to inform Can_MainFunction_Mode to continue to poll flag
-	todo
+	pendingModeChange[controller] = CAN_T_SLEEP
     break;
   case CAN_T_WAKEUP:
     // validate sleep mode
-    VALIDATE(regs->MCR.B.MDIS == 1, 3, CAN_E_TRANSITION);
+    VALIDATE(regs->MCR.B.LPMACK == 1, 3, CAN_E_TRANSITION);
 	regs->MCR.B = mcr;
 	// no delayed state transition, call mode indication directly
 	CanIf_ControllerModeIndication(controller, CANIF_CS_STOPPED);
@@ -768,7 +767,26 @@ void Can_Arc_BusOff( uint8 controller ) {
 
 // service id 12
 void Can_MainFunction_Mode(void) {
-  VALIDATE_NO_RV(Can_ConfigPtr != 0, 12, CAN_E_UNINIT);	
+  VALIDATE_NO_RV(Can_ConfigPtr != 0, 12, CAN_E_UNINIT);
+  // loop over all controllers to see if there are any pending mode changes ongoing
+  for(int controller = 0; controller < ; controller++) {
+	switch(pendingModeChange[controller]) {
+	case CAN_T_STOP:
+	  if(regs->MCR.B.FRZACK) {
+	    // state has changed, report to CanIf
+		CanIf_ControllerModeIndication(controller, CANIF_CS_STOPPED);
+		pendingModeChange[controller] = 0;
+	  }
+	  break;
+	case CAN_T_SLEEP:
+	  if(regs->MCR.B.LPMACK) {
+	    // state has changed, report to CanIf
+		CanIf_ControllerModeIndication(controller, CANIF_CS_SLEEP);
+		pendingModeChange[controller] = 0;
+	  }
+	  break;
+	}
+  }
 }
 
 void Can_ErrIsr(uint8 controller) {
