@@ -177,10 +177,12 @@ Std_ReturnType CanIf_Transmit(PduIdType canTxPduId,	const PduInfoType *pduInfoPt
 	VALIDATE(canTxPduId < CANIF_NUM_TX_LPDU_ID, 5, CANIF_E_INVALID_TXPDUID);
 	if(controllerData[CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].controllerMode != CANIF_CS_STARTED) {
 		// channel not started, return
+    ///todo report error to DEM,  CANIF_E_STOPPED
 		return ERR_NOT_OK;
 	}
 	if(!(controllerData[CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].pduMode & (CANIF_GET_TX_ONLINE ^ CANIF_GET_OFFLINE_ACTIVE))) {
     // TX is not online, return
+    ///todo report error to DEM,  CANIF_E_STOPPED
     return ERR_NOT_OK;
   }
 	Can_HwHandleType hth = CanIf_ConfigPtr->txLpduCfg[canTxPduId].hth;
