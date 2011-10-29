@@ -51,7 +51,7 @@ typedef struct {
 #if CANIF_PUBLIC_TX_BUFFERING
 		PduIdType nextInQueue;
 		uint8 data[8];
-    // dlc set to 0xFF indicates empty buffer
+    // dlc set to -1 indicates empty buffer
 		uint8 dlc;
 #endif
 #if CANIF_PUBLIC_READTXPDU_NOTIFY_STATUS_API
@@ -92,6 +92,7 @@ static const CanIf_ConfigType* CanIf_ConfigPtr;
 static CanIf_CanControllerType controllerData[CANIF_CHANNEL_CNT];
 
 extern const CanIf_ConfigType CanIf_config;
+extern const CanIf_DispatchCfgType canIfDispatchCfg;
 
 void CanIf_Init(const CanIf_ConfigType* configPtr) {
   // nullptr means use default config
@@ -184,7 +185,7 @@ Std_ReturnType CanIf_Transmit(PduIdType canTxPduId,	const PduInfoType *pduInfoPt
   }
 	Can_HwHandleType hth = CanIf_ConfigPtr->txLpduCfg[canTxPduId].hth;
 	uint8 controller = CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller;
-	Can_IdType canId = ((canTxPduId < CANIF_NUM_DYNAMIC_TX_LPDU_ID)? lPduData.dynCanId[canTxPduId] : CanIf_ConfigPtr->txLpduCfg[canTxPduId].id)
+	Can_IdType canId = ((canTxPduId < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[canTxPduId] : CanIf_ConfigPtr->txLpduCfg[canTxPduId].id)
 	Can_PduType canPdu = {
 		.sdu = pduInfoPtr->SduDataPtr,
 		.id = canId,
@@ -209,7 +210,7 @@ Std_ReturnType CanIf_Transmit(PduIdType canTxPduId,	const PduInfoType *pduInfoPt
       PduId *pduIdPtr = &driverUnit.hth[hth].nextInQueue;
       ///todo ensure that high id means high prio
       while(*pduIdPtr != -1 &&
-        ((*pduIdPtr < CANIF_NUM_DYNAMIC_TX_LPDU_ID)? lPduData.dynCanId[*pduIdPtr] : CanIf_ConfigPtr->txLpduCfg[*pduIdPtr].id) >= canId) {
+        ((*pduIdPtr < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[*pduIdPtr] : CanIf_ConfigPtr->txLpduCfg[*pduIdPtr].id) >= canId) {
         *pduIdPtr = &lPduData.txLpdu[canTxPduId].nextInQueue;
       }
       // add pdu tp queue
@@ -311,7 +312,7 @@ Std_ReturnType CanIf_GetPduMode(uint8 controllerId, CanIf_PduGetModeType* pduMod
 void CanIf_SetDynamicTxId(PduIdType canTxPduId, Can_IdType canId) {
 	VALIDATE_NO_RV(CanIf_ConfigPtr != 0, 12, CANIF_E_UNINIT);
 	VALIDATE_NO_RV((canId & 0x80000000) && canId < 0xA0000000 || canId < 0x800, 12, CANIF_E_PARAM_CANID);
-	VALIDATE_NO_RV(canTxPduId < CANIF_NUM_DYNAMIC_TX_LPDU_ID, 12, CANIF_E_INVALID_TXPDUID);
+	VALIDATE_NO_RV(canTxPduId < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS, 12, CANIF_E_INVALID_TXPDUID);
 	// change the tx id
 	lPduData.dynCanId[canTxPduId] = canId;
 }
@@ -366,7 +367,7 @@ void CanIf_TxConfirmation(PduIdType canTxPduId) { // L-PDU id
 	Can_HwHandleType lpdu = driverUnit.hth[hth].nextInQueue;
 	if(lpdu != -1) {
 		// send next
-		Can_IdType canId = ((lpdu < CANIF_NUM_DYNAMIC_TX_LPDU_ID)? lPduData.dynCanId[lpdu] : CanIf_ConfigPtr->txLpduCfg[lpdu].id)
+		Can_IdType canId = ((lpdu < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[lpdu] : CanIf_ConfigPtr->txLpduCfg[lpdu].id)
 		Can_PduType canPdu = {
 			.sdu = lPduData.txLpdu[lpdu].data,
 			.id = canId,
@@ -403,7 +404,7 @@ static void RxLPduReceived(PduId lpdu, Can_IdType canId, uint8 canDlc, const uin
 	// store in buffer
 #if CANIF_PRIVATE_DLC_CHECK
 	// check if dlc check is enabled
-	if(CanIf_ConfigPtr->rxLpduCfg[lpdu].dlc) {
+	if(CanIf_ConfigPtr->rxLpduCfg[lpdu].dlc != -1) {
 		// dlc check is enabled, verify dlc
 		if(canDlc < CanIf_ConfigPtr->rxLpduCfg[lpdu].dlc) {
 #if defined(USE_DEM)
@@ -480,7 +481,7 @@ void CanIf_CancelTxConfirmation(const Can_PduType* pduInfoPtr) {
 		PduId *pduIdPtr = &driverUnit.hth[hth].nextInQueue;
 		///todo ensure that high id means high prio
 		while(*pduIdPtr != -1 &&
-			((*pduIdPtr < CANIF_NUM_DYNAMIC_TX_LPDU_ID)? lPduData.dynCanId[*pduIdPtr] : CanIf_ConfigPtr->txLpduCfg[*pduIdPtr].id) >= canId) {
+			((*pduIdPtr < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[*pduIdPtr] : CanIf_ConfigPtr->txLpduCfg[*pduIdPtr].id) >= canId) {
 			*pduIdPtr = &lPduData.txLpdu[pduInfoPtr->swPduHandle].nextInQueue;
 		}
 		// add pdu to queue
@@ -493,7 +494,7 @@ void CanIf_CancelTxConfirmation(const Can_PduType* pduInfoPtr) {
 	Can_HwHandleType lpdu = driverUnit.hth[hth].nextInQueue;
 	if(lpdu != -1) {
 		// send next
-		Can_IdType canId = ((lpdu < CANIF_NUM_DYNAMIC_TX_LPDU_ID)? lPduData.dynCanId[lpdu] : CanIf_ConfigPtr->txLpduCfg[lpdu].id)
+		Can_IdType canId = ((lpdu < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[lpdu] : CanIf_ConfigPtr->txLpduCfg[lpdu].id)
 		Can_PduType canPdu = {
 			.sdu = lPduData.txLpdu[lpdu].data,
 			.id = canId,
@@ -540,8 +541,8 @@ void CanIf_ControllerBusOff(uint8 controller) {
 		}
 	}
 	// call ev callback
-	if(CanIf_ConfigPtr->controller[controller].user_ControllerBusOff) {
-		(*CanIf_ConfigPtr->controller[controller].user_ControllerBusOff)(controller);
+	if(canIfDispatchCfg.user_ControllerBusOff) {
+		(*canIfDispatchCfg.user_ControllerBusOff)(controller);
 }
 
 void CanIf_ControllerModeIndication(uint8 controller, CanIf_ControllerModeType controllerMode) {
@@ -581,8 +582,8 @@ void CanIf_ControllerModeIndication(uint8 controller, CanIf_ControllerModeType c
 		CanIf_SetControllerMode(controller, controllerData[controller].pendingControllerMode);
 	} else {
 		// requested mode reached. Call ev callback
-		if(CanIf_ConfigPtr->controller[controller].user_ControllerModeIndication) {
-			(*CanIf_ConfigPtr->controller[controller].user_ControllerModeIndication)(controller, controllerMode);
+		if(canIfDispatchCfg.user_ControllerModeIndication) {
+			(*canIfDispatchCfg.user_ControllerModeIndication)(controller, controllerMode);
 		}
 	}
 }

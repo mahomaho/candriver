@@ -2,11 +2,8 @@
 #define CANIF_CFG_H_
 
 
-/// Max number of dynamic tx L-PDUs
-#define CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS	0
-
 /// Enabled version info
-#define CANIF_VERSION_INFO_API                    STD_ON
+#define CANIF_PUBLIC_VERSION_INFO_API             STD_ON
 /// Enables the  CanIf_ReadRxPduData function
 #define CANIF_PUBLIC_READRXPDU_DATA_API		STD_ON
 /// Enables the CanIf_CancelTransmit function
@@ -49,11 +46,11 @@ typedef enum {
 	CANIF_TX_LPDU_ID_CanDB_Message_1,
 	CANIF_TX_LPDU_ID_CanDB_Message_2,
 	CANIF_TX_LPDU_ID_CanDB_Message_3,
-	CANIF_NUM_DYNAMIC_TX_LPDU_ID
+	CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS
 } CanIf_Arc_DynamicTxLPduIdType;
 
 typedef enum {
-	CANIF_TX_LPDU_ID_CanDB_Message_4 = CANIF_NUM_DYNAMIC_TX_LPDU_ID,
+	CANIF_TX_LPDU_ID_CanDB_Message_4 = CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS,
 	CANIF_NUM_TX_LPDU_ID
 } CanIf_Arc_StaticTxLPduIdType;
 

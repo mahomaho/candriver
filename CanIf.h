@@ -9,7 +9,7 @@
 #define CANIF_AR_RELEASE_MINOR_VERSION    0
 #define CANIF_AR_RELEASE_REVISION_VERSION 2
 #define CANIF_SW_MAJOR_VERSION            0
-#define CANIF_SW_MINOR_VERSION            0
+#define CANIF_SW_MINOR_VERSION            1
 #define CANIF_SW_PATCH_VERSION            0
 
 /** @name Error Codes */
@@ -65,7 +65,7 @@ CanIf_NotifStatusType CanIf_ReadRxNotifStatus(PduIdType CanRxPduId);
 
 Std_ReturnType CanIf_SetPduMode(uint8 ControllerId, CanIf_PduSetModeType PduModeRequest);
 Std_ReturnType CanIf_GetPduMode(uint8 ControllerId, CanIf_PduGetModeType* PduModePtr);
-#if ( CANIF_VERSION_INFO_API == STD_ON )
+#if ( CANIF_PUBLIC_VERSION_INFO_API == STD_ON )
 #define CanIf_GetVersionInfo(_vi) STD_GET_VERSION_INFO(_vi,CANIF)
 #endif
 

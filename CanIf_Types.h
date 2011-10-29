@@ -112,17 +112,21 @@ typedef struct {
 	dlc;
 	uint8 controller;
 	hohType hth;
+  ///todo add driverUnitId
+  ///todo: replace controller hth and driverUnitID with canif hth?
 	i_PduId; // att använda i callout functionen, kan vara ipdu, npduid eller valfri pduid type??
 	void(*user_TxConfirmation)(PduIdType txPduId);
+  ///todo lägg till dem error vid send during stop mode 
 } CanIf_TxLPduConfigType;
 
 typedef struct {
 	CanId id;
 	i_PduId; // att använda i callout functionen, kan vara ipdu, npduid eller valfri pduid type
-	dlc;
+	dlc; /// min dlc and dlc reported to upper layers. Set to -1 to disable min check
 //	uint8 controller;
 //	hohType hrhId;
 	void(*user_RxIndication)(PduIdType rxPduId, const PduInfoType* pduInfoPtr);
+  ///todo lägg till dem error vid CANIF_E_INVALID_DLC
 } CanIf_RxLPduConfigType;
 
 typedef struct {
@@ -132,8 +136,6 @@ typedef struct {
 } CanIf_HrHConfigType;
 
 typedef struct {
-	void(*User_ControllerModeIndication)(uint8 controllerId, CanIf_ControllerModeType controllerMode);
-	void(*user_ControllerBusOff)(uint8 controllerId);
 } CanIf_ControllerConfigType;
 
 typedef struct {
@@ -143,5 +145,11 @@ typedef struct {
 	CanIf_ControllerConfigType controller[CANIF_CHANNEL_CNT];
 } CanIf_ConfigType;
 
+typedef struct {
+	void(*user_ControllerModeIndication)(uint8 controllerId, CanIf_ControllerModeType controllerMode);
+	void(*user_ControllerBusOff)(uint8 controllerId);
+//  void(*user_SetWakeupEvent)(asdf)
+//  void(*user_TrcvModeIndication)(asdf)
+}CanIf_DispatchCfgType;
 #endif /*CANIF_TYPES_H_*/
 /** @} */

@@ -1,7 +1,7 @@
 /// Enable individual mask mode, not supported by MPC5554 and MPC5553, MPC5567?
 #define CAN_ENABLE_INDIVIDUAL_MASK    STD_ON
 /// set number of used msgboxes, max is 64
-#define CAN_NUM_MSGBOXES			  64
+#define CAN_NUM_MSGBOXES			        64
 /** Enable Development Error Trace. */
 #define CAN_DEV_ERROR_DETECT          STD_ON
 /** Build version info API. */
@@ -25,22 +25,22 @@ void Can_Arc_Read( Can_HwHandleType hrh );  // called either from Can_MainFuncti
 void Can_Arc_BusOff( uint8 controller );	// called either from Can_MainFunction_BusOff or isr
 
 typedef enum {
-	CanContoroller_CAN_A,
-	CanContoroller_CAN_C,
-	CanContoroller_CAN_D,
+	FlexCan_CAN_A,
+	FlexCan_CAN_C,
+	FlexCan_CAN_D,
 	CAN_NUM_CONTROLLERS
 }Can_Arc_ControllerIdType;
 
 typedef enum {
-	CAN_HTH_A_1 = 0,
-	CAN_HTH_C_1,
+	FlexCan_HTH_A_1 = 0,
+	FlexCan_HTH_C_1,
 	NUM_OF_HTHS
 } Can_Arc_HTHType;
 
 
 typedef enum {
-	CAN_HRH_A_1,
-	CAN_HRH_C_1,
+	FlexCan_HRH_A_1,
+	FlexCan_HRH_C_1,
 	NUM_OF_HRHS
 } Can_Arc_HRHType;
 
@@ -52,24 +52,29 @@ typedef volatile struct FlexCan FlexCanT;
 
 /// Can controller base address, see ref manual for correct value
 static FlexCanT* const CAN_CONTROLLER_BASE_ADDRESS[CAN_NUM_CONTROLLERS] = {
-	[CanContoroller_CAN_A] = (FlexCanT*)0x12345678,
-	[CanContoroller_CAN_C] = (FlexCanT*)0x87654321,
-	[CanContoroller_CAN_D] = (FlexCanT*)0x11111111
+	[FlexCan_CAN_A] = (FlexCanT*)0x12345678,
+	[FlexCan_CAN_C] = (FlexCanT*)0x87654321,
+	[FlexCan_CAN_D] = (FlexCanT*)0x11111111
 };
 	
-
+void Can_Arc_MainFunction_Write( uint8 controller );
 static inline void Can_MainFunction_Write( void )
 {
-	// add all controllers without isr
+	// add all controllers without isr enabled
+  Can_Arc_MainFunction_Write(FlexCan_CAN_C);
 }
 
+void Can_Arc_MainFunction_Read( uint8 controller );
 static inline void Can_MainFunction_Read( void )
 {
 	// add all controllers without isr
+  Can_Arc_MainFunction_Read(FlexCan_CAN_C);
 }
 
+void Can_Arc_BusOff( uint8 controller );
 static inline void Can_MainFunction_BusOff( void )
 {
 	// add all controllers without isr
+  Can_Arc_BusOff(FlexCan_CAN_C);
 }
 

@@ -6,9 +6,17 @@
 #include "Can_GeneralTypes.h"
 #include "Can_Cfg.h"
 
-#define CAN_AR_RELEASE_MAJOR_VERSION  4
-#define CAN_AR_RELEASE_MINOR_VERSION  0
+#define CAN_VENDOR_ID                   1
+#define CAN_AR_RELEASE_MAJOR_VERSION    4
+#define CAN_AR_RELEASE_MINOR_VERSION    0
+#define CAN_AR_RELEASE_REVISION_VERSION 2
+#define CAN_MODULE_ID                   MODULE_ID_CAN
+#define CAN_SW_MAJOR_VERSION            0
+#define CAN_SW_MINOR_VERSION            1
+#define CAN_SW_PATCH_VERSION            0
 ///todo verify versions of other modules
+
+
 
 #define CAN_E_PARAM_POINTER     0x01
 #define CAN_E_PARAM_HANDLE     0x02
