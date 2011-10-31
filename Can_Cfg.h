@@ -15,8 +15,9 @@
 /// Max busy wait time for CAN state transition [ms]
 #define CAN_TIMEOUT_DURATION          100
 /// general CAN RX callout function, do not define to disable
-#define CAN_LPDU_RX_CB                CanLPduReceiveCalloutFunction
+//#define CAN_LPDU_RX_CB                CanLPduReceiveCalloutFunction
 /// reference to the oscillator clock freq value
+extern uint32 oscillatorClockFreq;
 #define CAN_CPU_CLOCK_REFERENCE		  (uint32*)&oscillatorClockFreq
 
 /// base address for the can controller module
@@ -44,17 +45,17 @@ typedef enum {
 	NUM_OF_HRHS
 } Can_Arc_HRHType;
 
-
-extern Can_ConfigType Can_config;
+struct Can_ConfigType;
+//typedef const struct Can_ConfigType Can_ConfigType;
+extern const struct Can_ConfigType Can_config;
 
 struct FlexCan;
-typedef volatile struct FlexCan FlexCanT;
 
 /// Can controller base address, see ref manual for correct value
-static FlexCanT* const CAN_CONTROLLER_BASE_ADDRESS[CAN_NUM_CONTROLLERS] = {
-	[FlexCan_CAN_A] = (FlexCanT*)0x12345678,
-	[FlexCan_CAN_C] = (FlexCanT*)0x87654321,
-	[FlexCan_CAN_D] = (FlexCanT*)0x11111111
+static volatile struct FlexCan* const CAN_CONTROLLER_BASE_ADDRESS[CAN_NUM_CONTROLLERS] = {
+        [FlexCan_CAN_A] = (volatile struct FlexCan*)0x12345678,
+        [FlexCan_CAN_C] = (volatile struct FlexCan*)0x87654321,
+        [FlexCan_CAN_D] = (volatile struct FlexCan*)0x11111111
 };
 	
 void Can_Arc_MainFunction_Write( uint8 controller );

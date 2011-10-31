@@ -34,17 +34,13 @@
 #define CANIF_E_INVALID_RXPDUID 		      90
 ///}
 
-void CanIf_Init(const CanIf_ConfigType* ConfigPtr) {
-}
+void CanIf_Init(const CanIf_ConfigType* ConfigPtr);
 
-Std_ReturnType CanIf_SetControllerMode(uint8 ControllerId, CanIf_ControllerModeType ControllerMode) {
-}
+Std_ReturnType CanIf_SetControllerMode(uint8 ControllerId, CanIf_ControllerModeType ControllerMode);
 
-Std_ReturnType CanIf_GetControllerMode(uint8 ControllerId, CanIf_ControllerModeType *ControllerModePtr) {
-}
+Std_ReturnType CanIf_GetControllerMode(uint8 ControllerId, CanIf_ControllerModeType *ControllerModePtr);
 
-Std_ReturnType CanIf_Transmit(PduIdType CanTxPduId, const PduInfoType *PduInfoPtr) {
-}
+Std_ReturnType CanIf_Transmit(PduIdType CanTxPduId, const PduInfoType *PduInfoPtr);
 
 #if CANIF_CANCEL_TRANSMIT_SUPPORT
 Std_ReturnType CanIf_CancelTransmit(PduIdType CanTxPduId);

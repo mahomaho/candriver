@@ -8,6 +8,7 @@
 #else
 #define DEM_REPORTERRORSTATUS(_a, _b)
 #endif
+#include <string.h>
 ///todo implement support for MemMap.h
 //#include "MemMap.h"
 //#if defined(USE_PDUR)
@@ -45,7 +46,7 @@
 
 typedef struct {
 #if CANIF_PUBLIC_SETDYNAMICTXID_API
-	dynCanId[CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS];
+        Can_IdType dynCanId[CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS];
 #endif
 	struct {
 #if CANIF_PUBLIC_TX_BUFFERING
@@ -73,7 +74,7 @@ typedef struct {
 typedef struct {
 	
 	struct {
-		nextInQueue; // ptr or L-PDU id?
+                PduIdType nextInQueue; // next tx l-pduid
 	}hth[CANIF_NUM_HTHS];
 } CanIf_HthDataType;
 
@@ -96,6 +97,9 @@ static CanIf_CanControllerType controllerData[CANIF_CHANNEL_CNT];
 
 extern const CanIf_ConfigType CanIf_config;
 extern const CanIf_DispatchCfgType canIfDispatchCfg;
+
+#define LockSave() 1
+#define LockRestore(var) var = var
 
 static void ClearTxBuffers(uint8 controller) {
 	// reset all pending tx requests
@@ -211,16 +215,16 @@ Std_ReturnType CanIf_GetControllerMode(uint8 controllerId, CanIf_ControllerModeT
 }
 
 #if CANIF_PUBLIC_TX_BUFFERING
-static void AddTxMsgToQueue(PduIdType canTxPduId,	uint8 *sduPtr, uint8 dlc) {
+static void AddTxMsgToQueue(PduIdType canTxPduId, const uint8 *sduPtr, uint8 dlc, Can_IdType canId) {
   // write data to buffer
   lPduData.txLpdu[canTxPduId].dlc = dlc;
   memcpy(lPduData.txLpdu[canTxPduId].data, sduPtr, dlc);
   // add txlpdu to transmission queue in prio order
-  PduId *pduIdPtr = &hthData.hth[lPduData.txLpdu[canTxPduId].hth].nextInQueue;
+  PduIdType *pduIdPtr = &hthData.hth[CanIf_ConfigPtr->txLpduCfg[canTxPduId].hth].nextInQueue;
   // low id means high prio means high prio
   while(*pduIdPtr != -1 &&
     ((*pduIdPtr < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[*pduIdPtr] : CanIf_ConfigPtr->txLpduCfg[*pduIdPtr].id) <= canId) {
-    *pduIdPtr = &lPduData.txLpdu[canTxPduId].nextInQueue;
+    pduIdPtr = &lPduData.txLpdu[canTxPduId].nextInQueue;
   }
   // add pdu tp queue
   lPduData.txLpdu[canTxPduId].nextInQueue = *pduIdPtr;
@@ -236,16 +240,15 @@ Std_ReturnType CanIf_Transmit(PduIdType canTxPduId,	const PduInfoType *pduInfoPt
 	if(controllerData[CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].controllerMode != CANIF_CS_STARTED) {
 		// channel not started, report to DEM and return
     DEM_REPORTERRORSTATUS(CANIF_E_STOPPED, DEM_EVENT_STATUS_FAILED);
-		return ERR_NOT_OK;
+                return E_NOT_OK;
 	}
 	if(!(controllerData[CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].pduMode & (CANIF_GET_TX_ONLINE ^ CANIF_GET_OFFLINE_ACTIVE))) {
     // TX is not online, report to DEM and return
     DEM_REPORTERRORSTATUS(CANIF_E_STOPPED, DEM_EVENT_STATUS_FAILED);
-    return ERR_NOT_OK;
+    return E_NOT_OK;
   }
 	Can_HwHandleType hth = CanIf_ConfigPtr->txLpduCfg[canTxPduId].hth;
-	uint8 controller = CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller;
-	Can_IdType canId = ((canTxPduId < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[canTxPduId] : CanIf_ConfigPtr->txLpduCfg[canTxPduId].id)
+        Can_IdType canId = ((canTxPduId < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[canTxPduId] : CanIf_ConfigPtr->txLpduCfg[canTxPduId].id);
 	Can_PduType canPdu = {
 		.sdu = pduInfoPtr->SduDataPtr,
 		.id = canId,
@@ -260,12 +263,12 @@ Std_ReturnType CanIf_Transmit(PduIdType canTxPduId,	const PduInfoType *pduInfoPt
 		memcpy(lPduData.txLpdu[canTxPduId].data, pduInfoPtr->SduDataPtr, pduInfoPtr->SduLength);
 	} else {
     Can_ReturnType canRetVal = Can_Write(hth, &canPdu);
-    if(canRetVal == CAN_E_NOT_OK) {
+    if(canRetVal == CAN_NOT_OK) {
       // erroneous request, return error
       return E_NOT_OK;
     } else if(canRetVal == CAN_BUSY) {
       // write data to buffer
-      AddTxMsgToQueue(canTxPduId,	pduInfoPtr->SduDataPtr, pduInfoPtr->SduLength);
+      AddTxMsgToQueue(canTxPduId, pduInfoPtr->SduDataPtr, pduInfoPtr->SduLength, canId);
     }
   }
 	LockRestore(lock);
@@ -286,7 +289,7 @@ Std_ReturnType CanIf_Transmit(PduIdType canTxPduId,	const PduInfoType *pduInfoPt
 Std_ReturnType CanIf_CancelTransmit(PduIdType CanTxPduId) {
 	// dummy function with no functionality needed since it may be callbed by PduR
 	VALIDATE(CanTxPduId < CANIF_NUM_TX_LPDU_ID, 0x18, CANIF_E_INVALID_TXPDUID);
-	return STD_OK;
+        return E_OK;
 }
 #endif
 
@@ -327,7 +330,7 @@ CanIf_NotifStatusType CanIf_ReadTxNotifStatus(PduIdType canTxPduId) {
 
 #if ( CANIF_PUBLIC_READRXPDU_NOTIFY_STATUS_API == STD_ON )
 // service id 8
-CanIf_NotifStatusType CanIf_ReadRxNotifStatus(PduIdType CanRxPduId) {
+CanIf_NotifStatusType CanIf_ReadRxNotifStatus(PduIdType canRxPduId) {
 	VALIDATE_NO_RV(CanIf_ConfigPtr != 0, 8, CANIF_E_UNINIT);
 	VALIDATE_NO_RV(canRxPduId < CANIF_NUM_TX_LPDU_ID, 8, CANIF_E_INVALID_TXPDUID);
 	CanIf_NotifStatusType retVal = lPduData.rxLpdu[canRxPduId].rxInd;
@@ -344,7 +347,7 @@ Std_ReturnType CanIf_SetPduMode(uint8 controllerId, CanIf_PduSetModeType pduMode
 	VALIDATE(controllerId < CANIF_CHANNEL_CNT, 9, CANIF_E_PARAM_CONTROLLERID);
 	// set controller pdu mode
   uint8 oldMode = controllerData[controllerId].pduMode;
-	controllerData[controllerId].pduMode = controllerData[controllerId].pduMode & ~(pduModeRequest >> 8) | pduModeRequest & 0xff;
+        controllerData[controllerId].pduMode = (controllerData[controllerId].pduMode & ~(pduModeRequest >> 8)) | (pduModeRequest & 0xff);
   // check if tx set offline
   if(0 != (oldMode & CANIF_GET_TX_ONLINE) && 0 == (controllerData[controllerId].pduMode & CANIF_GET_TX_ONLINE)) {
     //clear all tx buffers
@@ -369,6 +372,7 @@ Std_ReturnType CanIf_GetPduMode(uint8 controllerId, CanIf_PduGetModeType* pduMod
 	VALIDATE(controllerId < CANIF_CHANNEL_CNT, 10, CANIF_E_PARAM_CONTROLLERID);
 	// return controller pdu mode
 	*pduModePtr = controllerData[controllerId].pduMode;
+        return E_OK;
 }
 
 #if CANIF_PUBLIC_SETDYNAMICTXID_API
@@ -384,16 +388,20 @@ void CanIf_SetDynamicTxId(PduIdType canTxPduId, Can_IdType canId) {
 
 Std_ReturnType CanIf_SetTrcvMode( uint8 TransceiverId, CanTrcv_TrcvModeType TransceiverMode ) {
 	///todo implement
+    return E_NOT_OK;
 }
 Std_ReturnType CanIf_GetTrcvMode( uint8 TransceiverId, CanTrcv_TrcvModeType* TransceiverModePtr ) {
 	///todo implement
+    return E_NOT_OK;
 }
 #if CANIF_TRCV_WAKEUP_SUPPORT
 Std_ReturnType CanIf_GetTrcvWakeupReason( uint8 TransceiverId, CanTrcv_TrcvWakeupReasonType* TrcvWuReasonPtr ) {
 	///todo implement
+    return E_NOT_OK;
 }
 Std_ReturnType CanIf_SetTrcvWakeupMode( uint8 TransceiverId, CanTrcv_TrcvWakeupModeType TrcvWakeupMode ) {
 	///todo implement
+    return E_NOT_OK;
 }
 #endif
 
@@ -430,13 +438,13 @@ void CanIf_TxConfirmation(PduIdType canTxPduId) { // L-PDU id
 #if CANIF_PUBLIC_TXCONFIRM_POLLING_SUPPORT
 	controllerData[CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].transmitConfirmedSinceLastStart = CANIF_TX_RX_NOTIFICATION;
 #endif
-	hth = CanIf_ConfigPtr->txLpduCfg[canTxPduId].hth;
+        Can_HwHandleType hth = CanIf_ConfigPtr->txLpduCfg[canTxPduId].hth;
 	bool lock = LockSave();
 	// send next in queue if present. Check if queue empty:
 	Can_HwHandleType lpdu = hthData.hth[hth].nextInQueue;
 	if(lpdu != -1) {
 		// send next
-		Can_IdType canId = ((lpdu < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[lpdu] : CanIf_ConfigPtr->txLpduCfg[lpdu].id)
+                Can_IdType canId = ((lpdu < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[lpdu] : CanIf_ConfigPtr->txLpduCfg[lpdu].id);
 		Can_PduType canPdu = {
 			.sdu = lPduData.txLpdu[lpdu].data,
 			.id = canId,
@@ -462,7 +470,7 @@ void CanIf_TxConfirmation(PduIdType canTxPduId) { // L-PDU id
 	}
 }
 
-static void RxLPduReceived(PduId lpdu, Can_IdType canId, uint8 canDlc, const uint8* canSduPtr) {
+static void RxLPduReceived(PduIdType lpdu, Can_IdType canId, uint8 canDlc, uint8* canSduPtr) {
 	// store in buffer
 #if CANIF_PRIVATE_DLC_CHECK
 	// check if dlc check is enabled
@@ -486,36 +494,37 @@ static void RxLPduReceived(PduId lpdu, Can_IdType canId, uint8 canDlc, const uin
 #endif
 #if CANIF_PUBLIC_READRXPDU_NOTIFY_STATUS_API
 	// set indicator
-	lPduData.rxLpdu[lpdu].rxInd;
+        lPduData.rxLpdu[lpdu].rxInd = CANIF_TX_RX_NOTIFICATION;
 #endif
 	// call eventual callback
 	if(CanIf_ConfigPtr->rxLpduCfg[lpdu].user_RxIndication) {
     PduInfoType pduInfo = {
       .SduLength = canDlc,
-      .SduDataPtr = canSduPtr;
+      .SduDataPtr = canSduPtr,
     };
 		(*CanIf_ConfigPtr->rxLpduCfg[lpdu].user_RxIndication)(CanIf_ConfigPtr->rxLpduCfg[lpdu].ulPduId, &pduInfo);
+        }
 }
 
 // called by CanIf_RxIndication with info about correct hrhConfig set for CanDriverUnit
 // service id 20
-void CanIf_Arc_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc, const uint8* canSduPtr, const CanIf_HrHConfigType *hrhCfgPtr) {
+void CanIf_Arc_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc, uint8* canSduPtr, uint8 driverUnit) {
 	VALIDATE_NO_RV(CanIf_ConfigPtr != 0, 20, CANIF_E_UNINIT);
 	VALIDATE_NO_RV(hrh < NUM_OF_HRHS, 20, CANIF_E_PARAM_HRH);
 	VALIDATE_NO_RV(canId & 0x80000000 && canId < 0xA0000000 || canId < 0x800, 20, CANIF_E_PARAM_CANID);
 	VALIDATE_NO_RV(canDlc <= 8, 20, CANIF_E_PARAM_DLC);
 	VALIDATE_NO_RV(canSduPtr != 0, 20, CANIF_E_PARAM_POINTER);
   // validate pdu mode
-  if((controllerData[hrhCfgPtr[hrh].controller].pduMode & CANIF_GET_RX_ONLINE) == 0) {
+  if((controllerData[CanIf_ConfigPtr->canIfHrhCfg[driverUnit][hrh].controller].pduMode & CANIF_GET_RX_ONLINE) == 0) {
     // rx not online, throw message
     return;
   }
-	int numPdus = hrhCfgPtr[hrh].arrayLen;
+        int numPdus =CanIf_ConfigPtr->canIfHrhCfg[driverUnit][hrh].arrayLen;
 	if(numPdus == 0) {
 		// no filtering, lpdu id found
-		RxLPduReceived(hrhCfgPtr[hrh].pduInfo.lpduId, canId, canDlc, canSduPtr);
+                RxLPduReceived(CanIf_ConfigPtr->canIfHrhCfg[driverUnit][hrh].pduInfo.lpduId, canId, canDlc, canSduPtr);
   } else {
-    PduIdType *firstPduId = hrhCfgPtr[hrh].pduInfo.array;
+    PduIdType *firstPduId = CanIf_ConfigPtr->canIfHrhCfg[driverUnit][hrh].pduInfo.array;
 		while(numPdus > 1) {
 			if(CanIf_ConfigPtr->rxLpduCfg[firstPduId[numPdus / 2]].id >= canId) {
 				firstPduId += numPdus / 2;
@@ -526,7 +535,7 @@ void CanIf_Arc_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc
 		}
 		if(CanIf_ConfigPtr->rxLpduCfg[*firstPduId].id == canId) {
 			// lpdu id found handle message
-			RxLPduReceived(firstPduId, canId, canDlc, canSduPtr);
+                        RxLPduReceived(*firstPduId, canId, canDlc, canSduPtr);
 		}
 	}
 }
@@ -543,28 +552,24 @@ void CanIf_CancelTxConfirmation(const Can_PduType* pduInfoPtr) {
 		// pdu buffer not empty: throw old data and return
 	} else {
 		// write data to buffer
-    AddTxMsgToQueue(pduInfoPtr->swPduHandle,	pduInfoPtr->sdu, pduInfoPtr->length);
+    AddTxMsgToQueue(pduInfoPtr->swPduHandle,	pduInfoPtr->sdu, pduInfoPtr->length, pduInfoPtr->id);
   }
-	LockRestore(lock);
-	hth = CanIf_ConfigPtr->txLpduCfg[pduInfoPtr->swPduHandle].hth;
-	bool lock = LockSave();
+        Can_HwHandleType hth = CanIf_ConfigPtr->txLpduCfg[pduInfoPtr->swPduHandle].hth;
 	Can_HwHandleType lpdu = hthData.hth[hth].nextInQueue;
-	if(lpdu != -1) {
-		// send next
-		Can_IdType canId = ((lpdu < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[lpdu] : CanIf_ConfigPtr->txLpduCfg[lpdu].id)
-		Can_PduType canPdu = {
-			.sdu = lPduData.txLpdu[lpdu].data,
-			.id = canId,
-			.swPduHandle = lpdu,
-			.length = lPduData.txLpdu[lpdu].dlc
-		};
-		// send data to CAN controller, ignore return value since it cannot be busy, send confirm is just called
-		Can_Write(hth, &canPdu);
-		// set dlc to -1 to indicate empty buffer
-		lPduData.txLpdu[lpdu].dlc = -1;
-		// update queue head
-		hthData.hth[hth].nextInQueue = lPduData.txLpdu[lpdu].nextInQueue;
-	}
+        // send next
+        Can_IdType canId = ((lpdu < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[lpdu] : CanIf_ConfigPtr->txLpduCfg[lpdu].id);
+        Can_PduType canPdu = {
+                .sdu = lPduData.txLpdu[lpdu].data,
+                .id = canId,
+                .swPduHandle = lpdu,
+                .length = lPduData.txLpdu[lpdu].dlc
+        };
+        // send data to CAN controller, ignore return value since it cannot be busy, send confirm is just called
+        Can_Write(hth, &canPdu);
+        // set dlc to -1 to indicate empty buffer
+        lPduData.txLpdu[lpdu].dlc = -1;
+        // update queue head
+        hthData.hth[hth].nextInQueue = lPduData.txLpdu[lpdu].nextInQueue;
 	LockRestore(lock);
 #else
 	// do nothing
@@ -585,6 +590,7 @@ void CanIf_ControllerBusOff(uint8 controller) {
 	// call ev callback
 	if(canIfDispatchCfg.user_ControllerBusOff) {
 		(*canIfDispatchCfg.user_ControllerBusOff)(controller);
+        }
 }
 
 void CanIf_ControllerModeIndication(uint8 controller, CanIf_ControllerModeType controllerMode) {
@@ -615,5 +621,5 @@ void CanIf_ControllerModeIndication(uint8 controller, CanIf_ControllerModeType c
 	}
 }
 
-void CanIf_TrcvModeIndication(uint8 Transceiver, CanTrcv_TrcvModeType TransceiverMode) {
+void CanIf_TrcvModeIndication(uint8 transceiver, CanTrcv_TrcvModeType transceiverMode) {
 }

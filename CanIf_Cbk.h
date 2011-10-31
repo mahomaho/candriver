@@ -1,3 +1,4 @@
+#include "Can.h"
 void CanIf_TxConfirmation(PduIdType CanTxPduId); // L-PDU id
 void CanIf_RxIndication(Can_HwHandleType Hrh, Can_IdType CanId, uint8 CanDlc, const uint8* CanSduPtr);
 #if CANIF_CTRLDRV_TX_CANCELLATION

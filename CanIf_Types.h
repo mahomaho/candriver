@@ -11,30 +11,6 @@
 #include "ComStack_Types.h"
 #include "Can_GeneralTypes.h"
 
-typedef enum {
-	/** UNINIT mode. Default mode of the CAN driver and all
-	 *  CAN controllers connected to one CAN network after
-	 *  power on. */
-	CANIF_CS_UNINIT = 0,
-	                           
-	/**  STOPPED mode. At least one of all CAN controllers
-	 *   connected to one CAN network are halted and does
-	 *   not operate on the bus. */
-	CANIF_CS_STOPPED,	                           
-	                           
-	/** STARTED mode. All CAN controllers connected to
-	 *  one CAN network are started by the CAN driver and
-	 *  in full-operational mode. */
-	CANIF_CS_STARTED,
-	
-	/** SLEEP mode. At least one of all CAN controllers
-	 *  connected to one CAN network are set into the
-	 *  SLEEP mode and can be woken up by request of the
-	 *  CAN driver or by a network event (must be supported
-	 *  by CAN hardware) */
-	CANIF_CS_SLEEP
-} CanIf_ControllerModeType;
-
 /** Status of the PDU channel group. Current mode of the channel defines its
  *  transmit or receive activity. Communication direction (transmission and/or
  *  reception) of the channel can be controlled separately or together by upper
@@ -125,7 +101,7 @@ typedef struct {
   /// upper layer confirmation function, set to null if no confirmation
 	void(*user_TxConfirmation)(PduIdType txPduId);
   /// can id used for transmission, msb indicates extended id
-	CanId id;
+        Can_IdType id;
   /// upper layer pdu id passed to callout function
 	PduIdType ulPduId;
 	///todo what should the dlc be used for in tx lpdu object? transmit length? If so, what to do with non filled bytes? Error code?
@@ -142,7 +118,7 @@ typedef struct {
 	void(*user_RxIndication)(PduIdType rxPduId, const PduInfoType* pduInfoPtr);
   /// can id used for reception filtering
   ///todo add support for range reception
-	CanId id;
+        Can_IdType id;
   /// upper layer pdu id passed to callout function
 	PduIdType ulPduId;
   /// min dlc and dlc reported to upper layers. Set to -1 to disable dlc check
@@ -158,6 +134,7 @@ typedef struct {
     PduIdType *array;
   }pduInfo;
   PduIdType arrayLen; // 0 means no ptr no filtering = fullCan reception
+  uint8 controller;
 } CanIf_HrHConfigType;
 
 typedef struct {
@@ -175,6 +152,7 @@ typedef struct {
 	CanIf_RxLPduConfigType rxLpduCfg[CANIF_NUM_RX_LPDU_ID];
 	///todo is this really postbuild? Otherwise should this not be here
 	CanIf_ControllerConfigType controller[CANIF_CHANNEL_CNT];
+         const CanIf_HrHConfigType* canIfHrhCfg[CANIF_NUM_DRIVER_UNITS];
 } CanIf_ConfigType;
 #endif /*CANIF_TYPES_H_*/
 /** @} */

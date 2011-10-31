@@ -1,4 +1,4 @@
-
+#if 0
 const CanIf_DispatchCfgType canIfDispatchCfg = {
 }
 
@@ -17,3 +17,6 @@ void CanIf_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc, co
   ///todo instead of accessing canIfHrhCfg directly it should be accessed via the root pbcfg object. Solve this by passing driverUnit instead of hrh
 	CanIf_Arc_RxIndication(hrh, canId, canDlc, canSduPtr, canIfHrhCfg);
 }
+
+
+#endif

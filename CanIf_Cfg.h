@@ -19,6 +19,8 @@
 #define CANIF_PUBLIC_READRXPDU_NOTIFY_STATUS_API	STD_ON
 /// Enables the CanIf_GetTxConfirmationState function
 #define CANIF_PUBLIC_TXCONFIRM_POLLING_SUPPORT    STD_ON
+/// Enables the CanIf_SetDynamicTxId function
+#define CANIF_PUBLIC_SETDYNAMICTXID_API            STD_ON
 /// Enabled the CanIf_CancelTxConfirmation function
 #define CANIF_CTRLDRV_TX_CANCELLATION				      STD_ON
 /// Enables the dlc check for received frames

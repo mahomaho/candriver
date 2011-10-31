@@ -80,12 +80,12 @@ typedef struct
 #endif
 }CanController;
 
-typedef const struct
+typedef const struct Can_ConfigType
 {
   CanController controller[CAN_NUM_CONTROLLERS];
   CanHardwareObject hrh[NUM_OF_HRHS];
   CanHardwareObject hth[NUM_OF_HTHS];
-}attribute((section=.canpostbuild)) Can_ConfigType;
+}/*__attribute__((section(".canpostbuild")))*/ Can_ConfigType;
 
 void Can_Init( const Can_ConfigType *Config );
 //void Can_DeInit(void);
@@ -109,8 +109,8 @@ Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo );
 void Can_MainFunction_Mode( void );
 
 void Can_Arc_Isr(uint8 controller, uint8 msgBox);
-void Can_Arc_IsrL((uint8 controller);
-void Can_Arc_IsrH((uint8 controller);
+void Can_Arc_IsrL(uint8 controller);
+void Can_Arc_IsrH(uint8 controller);
 void Can_ErrIsr(uint8 controller);
 
 void Can_Arc_Write( Can_HwHandleType hth ); // called either from Can_MainFunction_Write or isr
