@@ -105,45 +105,63 @@ typedef enum {
 	
 } CanIf_NotifStatusType;
 
-// för buffered tx
+#if CANIF_PUBLIC_MULTIPLE_DRV_SUPPORT
+typedef struct {
+  void (*CanIf_TxConfirmation)(PduIdType CanTxPduId); // L-PDU id
+  void (*CanIf_RxIndication)(Can_HwHandleType Hrh, Can_IdType CanId, uint8 CanDlc, const uint8* CanSduPtr);
+#if CANIF_CTRLDRV_TX_CANCELLATION
+  void (*CanIf_CancelTxConfirmation)(const Can_PduType* PduInfoPtr);
+#endif
+  void (*CanIf_ControllerBusOff)(uint8 Controller);
+  void (*CanIf_ControllerModeIndication)(uint8 Controller, CanIf_ControllerModeType ControllerMode);
+  uint8 numControllers;
+  Can_HwHandleType numHth;
+  Can_HwHandleType numHrh;
+  //uint8 controllerId; // canif controller id
+}CanIf_DriverUnitConfigType;
+#endif
 
 typedef struct {
-	CanId id;
-	dlc;
-	uint8 controller;
-	hohType hth;
-  ///todo add driverUnitId
-  ///todo: replace controller hth and driverUnitID with canif hth?
-	i_PduId; // att använda i callout functionen, kan vara ipdu, npduid eller valfri pduid type??
+  /// upper layer confirmation function, set to null if no confirmation
 	void(*user_TxConfirmation)(PduIdType txPduId);
-  ///todo lägg till dem error vid send during stop mode 
+  /// can id used for transmission, msb indicates extended id
+	CanId id;
+  /// upper layer pdu id passed to callout function
+	PduIdType ulPduId;
+	///todo what should the dlc be used for in tx lpdu object? transmit length? If so, what to do with non filled bytes? Error code?
+  uint8 dlc;
+	/// can driver controller id to be used for transmission
+  uint8 controller;
+  /// can driver hth id to be used for transmission
+	Can_HwHandleType hth;
+  ///todo add driverUnitId
 } CanIf_TxLPduConfigType;
 
 typedef struct {
-	CanId id;
-	i_PduId; // att använda i callout functionen, kan vara ipdu, npduid eller valfri pduid type
-	dlc; /// min dlc and dlc reported to upper layers. Set to -1 to disable min check
-//	uint8 controller;
-//	hohType hrhId;
+  /// upper layer indication function, set to null if no rx indication
 	void(*user_RxIndication)(PduIdType rxPduId, const PduInfoType* pduInfoPtr);
-  ///todo lägg till dem error vid CANIF_E_INVALID_DLC
+  /// can id used for reception filtering
+  ///todo add support for range reception
+	CanId id;
+  /// upper layer pdu id passed to callout function
+	PduIdType ulPduId;
+  /// min dlc and dlc reported to upper layers. Set to -1 to disable dlc check
+	uint8 dlc;
+	/// can driver controller id from where to receive lpdu
+  ///todo is this correct? Can an lpdu only be received from 1 controller?
+	uint8 controller;
 } CanIf_RxLPduConfigType;
 
 typedef struct {
-	l_pduIdFirst; // multiple lpdus sharing hrh must have pduid in sequense
-	///todo is this ok limitation to cope with postbuild requirements?
-	numLpdus; // 0 means fullcan, no filtering
+  union {
+    PduIdType lpduId;
+    PduIdType *array;
+  }pduInfo;
+  PduIdType arrayLen; // 0 means no ptr no filtering = fullCan reception
 } CanIf_HrHConfigType;
 
 typedef struct {
 } CanIf_ControllerConfigType;
-
-typedef struct {
-	CanIf_TxLPduConfigType txLpduCfg[CANIF_NUM_TX_LPDU_ID];
-	CanIf_RxLPduConfigType rxLpduCfg[CANIF_NUM_RX_LPDU_ID];
-	///todo is this really postbuild? Otherwise should this not be here
-	CanIf_ControllerConfigType controller[CANIF_CHANNEL_CNT];
-} CanIf_ConfigType;
 
 typedef struct {
 	void(*user_ControllerModeIndication)(uint8 controllerId, CanIf_ControllerModeType controllerMode);
@@ -151,5 +169,12 @@ typedef struct {
 //  void(*user_SetWakeupEvent)(asdf)
 //  void(*user_TrcvModeIndication)(asdf)
 }CanIf_DispatchCfgType;
+
+typedef struct {
+	CanIf_TxLPduConfigType txLpduCfg[CANIF_NUM_TX_LPDU_ID];
+	CanIf_RxLPduConfigType rxLpduCfg[CANIF_NUM_RX_LPDU_ID];
+	///todo is this really postbuild? Otherwise should this not be here
+	CanIf_ControllerConfigType controller[CANIF_CHANNEL_CNT];
+} CanIf_ConfigType;
 #endif /*CANIF_TYPES_H_*/
 /** @} */

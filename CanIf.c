@@ -74,8 +74,8 @@ typedef struct {
 	
 	struct {
 		nextInQueue; // ptr or L-PDU id?
-	}hth[CANIF_NUM_TX_LPDU_ID];
-} CanIf_CanDriverUnitType;
+	}hth[CANIF_NUM_HTHS];
+} CanIf_HthDataType;
 
 typedef struct {
 	uint8 controllerMode; // CanIf_ControllerModeType
@@ -83,16 +83,53 @@ typedef struct {
 	uint8 pduMode;// CanIf_PduGetModeType
 #if CANIF_PUBLIC_TXCONFIRM_POLLING_SUPPORT
 	uint8 transmitConfirmedSinceLastStart;
-#endif	
+#endif
+#if CANIF_PUBLIC_MULTIPLE_DRV_SUPPORT > 1
+  uint8 driverUnit;
+#endif
 } CanIf_CanControllerType;
 
 static CanIf_LPduDataType lPduData;
-static CanIf_CanDriverUnitType driverUnit;
+static CanIf_HthDataType hthData;
 static const CanIf_ConfigType* CanIf_ConfigPtr;
 static CanIf_CanControllerType controllerData[CANIF_CHANNEL_CNT];
 
 extern const CanIf_ConfigType CanIf_config;
 extern const CanIf_DispatchCfgType canIfDispatchCfg;
+
+static void ClearTxBuffers(uint8 controller) {
+	// reset all pending tx requests
+	for(PduIdType i = 0; i < CANIF_NUM_TX_LPDU_ID; i++) {
+		if(CanIf_ConfigPtr->txLpduCfg[i].controller == controller) {
+#if CANIF_PUBLIC_READTXPDU_NOTIFY_STATUS_API
+      // clear notification status
+      lPduData.txLpdu[i].txConfirmed = CANIF_NO_NOTIFICATION;
+#endif
+#if CANIF_PUBLIC_TX_BUFFERING
+			// set nextInQueue to indicate empty queue
+			hthData.hth[CanIf_ConfigPtr->txLpduCfg[i].hth].nextInQueue = -1;
+  		// set dlc to -1 to indicate empty buffer
+			lPduData.txLpdu[i].dlc = -1;
+#endif
+		}
+	}
+}
+
+static void ClearRxBuffers(uint8 controller) {
+	// reset buffers
+	for(PduIdType i = 0; i < CANIF_NUM_RX_LPDU_ID; i++) {
+		if(CanIf_ConfigPtr->rxLpduCfg[i].controller == controller) {
+#if CANIF_PUBLIC_READRXPDU_NOTIFY_STATUS_API
+      // clear notification status
+      lPduData.rxLpdu[i].rxInd = CANIF_NO_NOTIFICATION;
+#endif
+#if CANIF_PUBLIC_READRXPDU_DATA_API
+  		// set dlc to -1 to indicate empty buffer
+			lPduData.rxLpdu[i].dlc = -1;
+#endif
+		}
+	}
+}
 
 void CanIf_Init(const CanIf_ConfigType* configPtr) {
   // nullptr means use default config
@@ -111,8 +148,11 @@ void CanIf_Init(const CanIf_ConfigType* configPtr) {
     lPduData.dynCanId[i] = configPtr->txLpduCfg[i].id;
   }
 #endif
-
-  driverUnit
+  // clear all buffers to initialize them
+  for(uint8 i = 0; i < CANIF_CHANNEL_CNT; i++) {
+    ClearTxBuffers(i);
+    ClearRxBuffers(i);
+  }
   // initialize all data
   CanIf_ConfigPtr = configPtr;
 }
@@ -170,19 +210,37 @@ Std_ReturnType CanIf_GetControllerMode(uint8 controllerId, CanIf_ControllerModeT
 	return E_OK;
 }
 
+#if CANIF_PUBLIC_TX_BUFFERING
+static void AddTxMsgToQueue(PduIdType canTxPduId,	uint8 *sduPtr, uint8 dlc) {
+  // write data to buffer
+  lPduData.txLpdu[canTxPduId].dlc = dlc;
+  memcpy(lPduData.txLpdu[canTxPduId].data, sduPtr, dlc);
+  // add txlpdu to transmission queue in prio order
+  PduId *pduIdPtr = &hthData.hth[lPduData.txLpdu[canTxPduId].hth].nextInQueue;
+  // low id means high prio means high prio
+  while(*pduIdPtr != -1 &&
+    ((*pduIdPtr < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[*pduIdPtr] : CanIf_ConfigPtr->txLpduCfg[*pduIdPtr].id) <= canId) {
+    *pduIdPtr = &lPduData.txLpdu[canTxPduId].nextInQueue;
+  }
+  // add pdu tp queue
+  lPduData.txLpdu[canTxPduId].nextInQueue = *pduIdPtr;
+  *pduIdPtr = canTxPduId;
+}
+#endif
+
 // serive id 5
 Std_ReturnType CanIf_Transmit(PduIdType canTxPduId,	const PduInfoType *pduInfoPtr) {
 	VALIDATE(CanIf_ConfigPtr != 0, 5, CANIF_E_UNINIT);
 	VALIDATE(pduInfoPtr != 0, 5, CANIF_E_PARAM_POINTER);
 	VALIDATE(canTxPduId < CANIF_NUM_TX_LPDU_ID, 5, CANIF_E_INVALID_TXPDUID);
 	if(controllerData[CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].controllerMode != CANIF_CS_STARTED) {
-		// channel not started, return
-    ///todo report error to DEM,  CANIF_E_STOPPED
+		// channel not started, report to DEM and return
+    DEM_REPORTERRORSTATUS(CANIF_E_STOPPED, DEM_EVENT_STATUS_FAILED);
 		return ERR_NOT_OK;
 	}
 	if(!(controllerData[CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].pduMode & (CANIF_GET_TX_ONLINE ^ CANIF_GET_OFFLINE_ACTIVE))) {
-    // TX is not online, return
-    ///todo report error to DEM,  CANIF_E_STOPPED
+    // TX is not online, report to DEM and return
+    DEM_REPORTERRORSTATUS(CANIF_E_STOPPED, DEM_EVENT_STATUS_FAILED);
     return ERR_NOT_OK;
   }
 	Can_HwHandleType hth = CanIf_ConfigPtr->txLpduCfg[canTxPduId].hth;
@@ -203,33 +261,24 @@ Std_ReturnType CanIf_Transmit(PduIdType canTxPduId,	const PduInfoType *pduInfoPt
 	} else {
     Can_ReturnType canRetVal = Can_Write(hth, &canPdu);
     if(canRetVal == CAN_E_NOT_OK) {
+      // erroneous request, return error
       return E_NOT_OK;
-    } else if(Can_Write(hth, &canPdu) == CAN_BUSY) {
+    } else if(canRetVal == CAN_BUSY) {
       // write data to buffer
-      lPduData.txLpdu[canTxPduId].dlc = pduInfoPtr->SduLength;
-      memcpy(lPduData.txLpdu[canTxPduId].data, pduInfoPtr->SduDataPtr, pduInfoPtr->SduLength);
-      // add txlpdu to transmission queue in prio order
-      PduId *pduIdPtr = &driverUnit.hth[hth].nextInQueue;
-      ///todo ensure that high id means high prio
-      while(*pduIdPtr != -1 &&
-        ((*pduIdPtr < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[*pduIdPtr] : CanIf_ConfigPtr->txLpduCfg[*pduIdPtr].id) >= canId) {
-        *pduIdPtr = &lPduData.txLpdu[canTxPduId].nextInQueue;
-      }
-      // add pdu tp queue
-      lPduData.txLpdu[canTxPduId].nextInQueue = *pduIdPtr;
-      *pduIdPtr = canTxPduId;
+      AddTxMsgToQueue(canTxPduId,	pduInfoPtr->SduDataPtr, pduInfoPtr->SduLength);
     }
   }
 	LockRestore(lock);
+  // return E_OK since message buffered
+	return E_OK;
 #else
 	Can_ReturnType canRetVal = Can_Write(hth, &canPdu);
-  if(canRetVal == CAN_E_NOT_OK) {
+  if(canRetVal != CAN_OK) {
+    // if cotroller busy, just throw message, cannot do anything since no buffers
     return E_NOT_OK;
   }
-  // if cotroller busy, just throw message, cannot do anything since no buffers
+  return E_OK;
 #endif
-	///todo shoud this funtion return E_NOT_OK if not buffered transmission and Can_Write returns not ok?
-	return E_OK;
 }
 
 #if CANIF_CANCEL_TRANSMIT_SUPPORT
@@ -247,14 +296,12 @@ Std_ReturnType CanIf_ReadRxPduData(PduIdType canRxPduId, PduInfoType *pduInfoPtr
 	VALIDATE(CanIf_ConfigPtr != 0, 6, CANIF_E_UNINIT);
 	VALIDATE(pduInfoPtr != 0, 6, CANIF_E_PARAM_POINTER);
 	VALIDATE(canRxPduId < CANIF_NUM_RX_LPDU_ID, 6, CANIF_E_INVALID_RXPDUID);
-	if(controllerData[CanIf_ConfigPtr->rxLpduCfg[canRxPduId].controller].controllerMode != CANIF_CS_STARTED) {
-		// Controller is not in started mode, return error
-		return E_NOT_OK;
-	}
-	if(controllerData[CanIf_ConfigPtr->rxLpduCfg[canRxPduId].controller].pduMode & CANIF_GET_RX_ONLINE) {
-		// Controller is not in receive mode online, return error
-		return E_NOT_OK;
-	}
+  // check if buffer empty
+  if(lPduData.rxLpdu[canRxPduId].dlc == -1) {
+    // buffer empty, return error
+    // this will always be reached if rx offline and or can is in stoped mode since rx buffer gets cleared when those modes are reached
+    return E_NOT_OK;
+  }
 	// copy data
 	bool lock = LockSave();
 	uint8 dlc = lPduData.rxLpdu[canRxPduId].dlc;
@@ -296,7 +343,22 @@ Std_ReturnType CanIf_SetPduMode(uint8 controllerId, CanIf_PduSetModeType pduMode
 	VALIDATE(CanIf_ConfigPtr != 0, 9, CANIF_E_UNINIT);
 	VALIDATE(controllerId < CANIF_CHANNEL_CNT, 9, CANIF_E_PARAM_CONTROLLERID);
 	// set controller pdu mode
+  uint8 oldMode = controllerData[controllerId].pduMode;
 	controllerData[controllerId].pduMode = controllerData[controllerId].pduMode & ~(pduModeRequest >> 8) | pduModeRequest & 0xff;
+  // check if tx set offline
+  if(0 != (oldMode & CANIF_GET_TX_ONLINE) && 0 == (controllerData[controllerId].pduMode & CANIF_GET_TX_ONLINE)) {
+    //clear all tx buffers
+    bool lock = LockSave();
+    ClearTxBuffers(controllerId);
+    LockRestore(lock);
+  }
+  // check if rx set offline
+  if(0 != (oldMode & CANIF_GET_RX_ONLINE) && 0 == (controllerData[controllerId].pduMode & CANIF_GET_RX_ONLINE)) {
+    //clear all rx buffers
+    bool lock = LockSave();
+    ClearRxBuffers(controllerId);
+    LockRestore(lock);
+  }
 	return E_OK;
 }
 
@@ -359,14 +421,19 @@ CanIf_NotifStatusType CanIf_GetTxConfirmationState(uint8 controllerId) {
 void CanIf_TxConfirmation(PduIdType canTxPduId) { // L-PDU id
 	VALIDATE_NO_RV(CanIf_ConfigPtr != 0, 19, CANIF_E_UNINIT);
 	VALIDATE_NO_RV(canTxPduId < CANIF_NUM_TX_LPDU_ID, 19, CANIF_E_PARAM_LPDU);
+  // check if transmit confirmation should be processed
+  if((controllerData[CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].pduMode & CANIF_GET_OFFLINE_ACTIVE) == 0) {
+    // transmit confirm should not be processed, return
+    return;
+  }
 #if CANIF_PUBLIC_TX_BUFFERING
 #if CANIF_PUBLIC_TXCONFIRM_POLLING_SUPPORT
 	controllerData[CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].transmitConfirmedSinceLastStart = CANIF_TX_RX_NOTIFICATION;
 #endif
-	hth = CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].hth;
+	hth = CanIf_ConfigPtr->txLpduCfg[canTxPduId].hth;
 	bool lock = LockSave();
 	// send next in queue if present. Check if queue empty:
-	Can_HwHandleType lpdu = driverUnit.hth[hth].nextInQueue;
+	Can_HwHandleType lpdu = hthData.hth[hth].nextInQueue;
 	if(lpdu != -1) {
 		// send next
 		Can_IdType canId = ((lpdu < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[lpdu] : CanIf_ConfigPtr->txLpduCfg[lpdu].id)
@@ -381,7 +448,7 @@ void CanIf_TxConfirmation(PduIdType canTxPduId) { // L-PDU id
 		// set dlc to -1 to indicate empty buffer
 		lPduData.txLpdu[lpdu].dlc = -1;
 		// update queue head
-		driverUnit.hth[hth].nextInQueue = lPduData.txLpdu[lpdu].nextInQueue;
+		hthData.hth[hth].nextInQueue = lPduData.txLpdu[lpdu].nextInQueue;
 	}
 	LockRestore(lock);
 #endif
@@ -391,15 +458,8 @@ void CanIf_TxConfirmation(PduIdType canTxPduId) { // L-PDU id
 #endif
 	// call eventual callback
 	if(CanIf_ConfigPtr->txLpduCfg[canTxPduId].user_TxConfirmation) {
-		(*CanIf_ConfigPtr->txLpduCfg[canTxPduId].user_TxConfirmation)(CanIf_ConfigPtr->txLpduCfg[canTxPduId].i_PduId);
+		(*CanIf_ConfigPtr->txLpduCfg[canTxPduId].user_TxConfirmation)(CanIf_ConfigPtr->txLpduCfg[canTxPduId].ulPduId);
 	}
-}
-
-extern const CanIf_HrHConfigType canIfHrhCfg[];
-// service id 20
-void CanIf_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc, const uint8* canSduPtr) {
-	// function callbed by CAN controller. Different names for different driver units
-	CanIf_Arc_RxIndication(hrh, canId, canDlc, canSduPtr, canIfHrhCfg);
 }
 
 static void RxLPduReceived(PduId lpdu, Can_IdType canId, uint8 canDlc, const uint8* canSduPtr) {
@@ -434,31 +494,37 @@ static void RxLPduReceived(PduId lpdu, Can_IdType canId, uint8 canDlc, const uin
       .SduLength = canDlc,
       .SduDataPtr = canSduPtr;
     };
-		(*CanIf_ConfigPtr->rxLpduCfg[lpdu].user_RxIndication)(CanIf_ConfigPtr->rxLpduCfg[lpdu].i_PduId, &pduInfo);
+		(*CanIf_ConfigPtr->rxLpduCfg[lpdu].user_RxIndication)(CanIf_ConfigPtr->rxLpduCfg[lpdu].ulPduId, &pduInfo);
 }
 
 // called by CanIf_RxIndication with info about correct hrhConfig set for CanDriverUnit
+// service id 20
 void CanIf_Arc_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc, const uint8* canSduPtr, const CanIf_HrHConfigType *hrhCfgPtr) {
 	VALIDATE_NO_RV(CanIf_ConfigPtr != 0, 20, CANIF_E_UNINIT);
 	VALIDATE_NO_RV(hrh < NUM_OF_HRHS, 20, CANIF_E_PARAM_HRH);
 	VALIDATE_NO_RV(canId & 0x80000000 && canId < 0xA0000000 || canId < 0x800, 20, CANIF_E_PARAM_CANID);
 	VALIDATE_NO_RV(canDlc <= 8, 20, CANIF_E_PARAM_DLC);
 	VALIDATE_NO_RV(canSduPtr != 0, 20, CANIF_E_PARAM_POINTER);
-  PduIdType firstPduId = hrhCfgPtr[hrh].l_pduIdFirst;
-	int numPdus = hrhCfgPtr[hrh].numLpdus;
+  // validate pdu mode
+  if((controllerData[hrhCfgPtr[hrh].controller].pduMode & CANIF_GET_RX_ONLINE) == 0) {
+    // rx not online, throw message
+    return;
+  }
+	int numPdus = hrhCfgPtr[hrh].arrayLen;
 	if(numPdus == 0) {
 		// no filtering, lpdu id found
-		RxLPduReceived(firstPduId, canId, canDlc, canSduPtr);
-	} else {
+		RxLPduReceived(hrhCfgPtr[hrh].pduInfo.lpduId, canId, canDlc, canSduPtr);
+  } else {
+    PduIdType *firstPduId = hrhCfgPtr[hrh].pduInfo.array;
 		while(numPdus > 1) {
-			if(CanIf_ConfigPtr->rxLpduCfg[firstPduId + numPdus / 2].id >= canId) {
+			if(CanIf_ConfigPtr->rxLpduCfg[firstPduId[numPdus / 2]].id >= canId) {
 				firstPduId += numPdus / 2;
 				numPdus = numPdus / 2 + numPdus % 2;
 			} else {
 				numPdus = numPdus / 2;
 			}
 		}
-		if(CanIf_ConfigPtr->rxLpduCfg[firstPduId].id == canId) {
+		if(CanIf_ConfigPtr->rxLpduCfg[*firstPduId].id == canId) {
 			// lpdu id found handle message
 			RxLPduReceived(firstPduId, canId, canDlc, canSduPtr);
 		}
@@ -477,23 +543,12 @@ void CanIf_CancelTxConfirmation(const Can_PduType* pduInfoPtr) {
 		// pdu buffer not empty: throw old data and return
 	} else {
 		// write data to buffer
-		lPduData.txLpdu[pduInfoPtr->swPduHandle].dlc = pduInfoPtr->length;
-		memcpy(lPduData.txLpdu[pduInfoPtr->swPduHandle].data, pduInfoPtr->sdu, pduInfoPtr->length);
-		// add txlpdu to transmission queue in prio order
-		PduId *pduIdPtr = &driverUnit.hth[hth].nextInQueue;
-		///todo ensure that high id means high prio
-		while(*pduIdPtr != -1 &&
-			((*pduIdPtr < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[*pduIdPtr] : CanIf_ConfigPtr->txLpduCfg[*pduIdPtr].id) >= canId) {
-			*pduIdPtr = &lPduData.txLpdu[pduInfoPtr->swPduHandle].nextInQueue;
-		}
-		// add pdu to queue
-		lPduData.txLpdu[pduInfoPtr->swPduHandle].nextInQueue = *pduIdPtr;
-		*pduIdPtr = pduInfoPtr->swPduHandle;
-	}
+    AddTxMsgToQueue(pduInfoPtr->swPduHandle,	pduInfoPtr->sdu, pduInfoPtr->length);
+  }
 	LockRestore(lock);
 	hth = CanIf_ConfigPtr->txLpduCfg[pduInfoPtr->swPduHandle].hth;
 	bool lock = LockSave();
-	Can_HwHandleType lpdu = driverUnit.hth[hth].nextInQueue;
+	Can_HwHandleType lpdu = hthData.hth[hth].nextInQueue;
 	if(lpdu != -1) {
 		// send next
 		Can_IdType canId = ((lpdu < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[lpdu] : CanIf_ConfigPtr->txLpduCfg[lpdu].id)
@@ -508,7 +563,7 @@ void CanIf_CancelTxConfirmation(const Can_PduType* pduInfoPtr) {
 		// set dlc to -1 to indicate empty buffer
 		lPduData.txLpdu[lpdu].dlc = -1;
 		// update queue head
-		driverUnit.hth[hth].nextInQueue = lPduData.txLpdu[lpdu].nextInQueue;
+		hthData.hth[hth].nextInQueue = lPduData.txLpdu[lpdu].nextInQueue;
 	}
 	LockRestore(lock);
 #else
@@ -522,26 +577,11 @@ void CanIf_ControllerBusOff(uint8 controller) {
 	controllerData[controller].controllerMode = CANIF_CS_STOPPED;
 	// update pending mode
 	controllerData[controller].pendingControllerMode = CANIF_CS_STOPPED;
-	// reset all pending tx requests
-	for(PduIdType i = 0; i < CANIF_NUM_TX_LPDU_ID; i++) {
-		if(CanIf_ConfigPtr->txLpduCfg[i].controller == controller) {
-#if CANIF_PUBLIC_READTXPDU_NOTIFY_STATUS_API
-      // clear notification status
-      lPduData.txLpdu[i].txConfirmed = CANIF_NO_NOTIFICATION
-#endif
-#if CANIF_PUBLIC_TX_BUFFERING
-      // get queue status
-			PduIdType nextInQueue = driverUnit.hth[CanIf_ConfigPtr->txLpduCfg[i].hth].nextInQueue;
-			// set nextInQueue to indicate empty queue
-			driverUnit.hth[CanIf_ConfigPtr->txLpduCfg[i].hth].nextInQueue = -1;
-			while(nextInQueue != -1) {
-				// set dlc to -1 to indicate empty buffer
-				lPduData.txLpdu[nextInQueue].dlc = -1;
-				nextInQueue = lPduData.txLpdu[nextInQueue].nextInQueue;
-			}
-#endif
-		}
-	}
+	// reset all buffers
+  bool lock = LockSave();
+  ClearTxBuffers(controller);
+  ClearRxBuffers(controller);
+  LockRestore(lock);
 	// call ev callback
 	if(canIfDispatchCfg.user_ControllerBusOff) {
 		(*canIfDispatchCfg.user_ControllerBusOff)(controller);
@@ -552,32 +592,17 @@ void CanIf_ControllerModeIndication(uint8 controller, CanIf_ControllerModeType c
 	controllerData[controller].controllerMode = controllerMode;
 	if(controllerMode == CANIF_CS_STOPPED) {
 		// stopped mode reached
-    // reset all pending tx requests
-    for(PduIdType i = 0; i < CANIF_NUM_TX_LPDU_ID; i++) {
-      if(CanIf_ConfigPtr->txLpduCfg[i].controller == controller) {
-#if CANIF_PUBLIC_READTXPDU_NOTIFY_STATUS_API
-        // clear notification status
-        lPduData.txLpdu[i].txConfirmed = CANIF_NO_NOTIFICATION
-#endif
-#if CANIF_PUBLIC_TX_BUFFERING
-        // get queue status
-        PduIdType nextInQueue = driverUnit.hth[CanIf_ConfigPtr->txLpduCfg[i].hth].nextInQueue;
-        // set nextInQueue to indicate empty queue
-        driverUnit.hth[CanIf_ConfigPtr->txLpduCfg[i].hth].nextInQueue = -1;
-        while(nextInQueue != -1) {
-          // set dlc to -1 to indicate empty buffer
-          lPduData.txLpdu[nextInQueue].dlc = -1;
-          nextInQueue = lPduData.txLpdu[nextInQueue].nextInQueue;
-        }
-#endif
-      }
-    }
-	}
+    // reset all buffers
+    bool lock = LockSave();
+    ClearTxBuffers(controller);
+    ClearRxBuffers(controller);
+    LockRestore(lock);
+	} else if(controllerMode == CANIF_CS_STARTED) {
 #if CANIF_PUBLIC_TXCONFIRM_POLLING_SUPPORT
-	 else if(controllerMode == CANIF_CS_STARTED) {
+    // set controller tx indicator
 		controllerData[controller].transmitConfirmedSinceLastStart = CANIF_NO_NOTIFICATION;
-	}
 #endif
+	}
 	// check if pending mode reached
 	if(controllerData[controller].pendingControllerMode != controllerMode) {
 		// pending mode not reached. Set pending mode and return

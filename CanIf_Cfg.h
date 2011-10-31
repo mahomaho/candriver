@@ -1,6 +1,11 @@
 #ifndef CANIF_CFG_H_
 #define CANIF_CFG_H_
 
+/// number of hths referenced by canif
+#define CANIF_NUM_HTHS                            NUM_OF_HTHS
+/// number of driver units
+///todo change this name to something from specificatoin
+#define CANIF_NUM_DRIVER_UNITS                    1
 
 /// Enabled version info
 #define CANIF_PUBLIC_VERSION_INFO_API             STD_ON

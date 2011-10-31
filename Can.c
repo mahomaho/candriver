@@ -597,43 +597,33 @@ Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
 	FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[Can_ConfigPtr->hth[hth].controller];
 #if CAN_HW_TRANSMIT_CANCELLATION
   // prepare low prio search, 0 is highest prio id
-	Can_IdType lowestPrioId = 0;
-	loPrioIdx = 0;
 #endif
+	uint8_t msgBox = Can_ConfigPtr->hth[hth].msgBox;
 	bool lock = LockSave();
-	for(int i = 0; i < (CAN_MULTIPLEXED_TRANSMISSION? Can_ConfigPtr->hth[hth].numMultiplexed : 1); i++) {
-		uint8_t msgBox = Can_ConfigPtr->hth[hth].msgBox + i;
-		// check if empty
-		if(controllerData[msgBox][Can_ConfigPtr->hth[hth].controller].id != -1) {
-      // msgbox id busy sending a frame
+  // check if empty
+  if(controllerData[msgBox][Can_ConfigPtr->hth[hth].controller].id != -1) {
+    // msgbox id busy sending a frame
 #if CAN_HW_TRANSMIT_CANCELLATION
-			if(regs->BUF[msgBox].ID.R ((CAN_IDENTICAL_ID_CANCELLATION)? >= : > ) lowestPrioId) {
-				// pending transmit has id with lower prio
-				lowestPrioId = regs->BUF[msgBox].ID.R;
-				loPrioIdx = i;
-			}
+    if(regs->BUF[msgBox].ID.R ((CAN_IDENTICAL_ID_CANCELLATION)? >= : > ) id) {
+      // pending transmit has id with lower prio, cancel transmission
+      regs->BUF[msgBox].CS.B.CODE = 0x9;
+    }
 #endif
-		}else {
-      // msgbox is empty, store lpdu id in buffer and send message
-			controllerData[msgBox][Can_ConfigPtr->hth[hth].controller].id = pduInfo->pduId;
-			// fill in the msgBox
-			memcpy(regs->BUF[msgBox].DATA.B, pduInfo->sdu, 8);
-			regs->BUF[msgBox].ID.R = id;
-			regs->BUF[msgBox].CS = cs;
-			// restore interrupt when buffer access done
-			LockRestore(lock);
-			return CAN_OK;
-		}
-	}
-	// 
-#if CAN_HW_TRANSMIT_CANCELLATION
-	// cancel lowest prio id if prio lower than id
-	if(id < lowestPrioId) {
-		regs->BUF[loPrioIdx].CS.B.CODE = 0x9;
-	}
-#endif
-	LockRestore(lock);
-	return  CAN_BUSY;
+    LockRestore(lock);
+    // controller busy, return error code
+    return  CAN_BUSY;
+  }else {
+    // msgbox is empty, store lpdu id in buffer and send message
+    controllerData[msgBox][Can_ConfigPtr->hth[hth].controller].id = pduInfo->pduId;
+    // fill in the msgBox
+    memcpy(regs->BUF[msgBox].DATA.B, pduInfo->sdu, 8);
+    regs->BUF[msgBox].ID.R = id;
+    // set CS to send message
+    regs->BUF[msgBox].CS.B = cs;
+    // restore interrupt when buffer access done
+    LockRestore(lock);
+    return CAN_OK;
+  }
 }
 
 static void Isr(uint8 controller, uint8 msgBox, FlexCanT *regs) {
@@ -683,6 +673,7 @@ static void Isr(uint8 controller, uint8 msgBox, FlexCanT *regs) {
   }
 }
 
+// isr function used for each individual msgbox isr for msgbox 0-31
 void Can_Arc_Isr(uint8 controller, uint8 msgBox) {
   FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
   // clear flag before handling of message, necessary to not miss an interrupt when receiving a new frame
@@ -690,6 +681,7 @@ void Can_Arc_Isr(uint8 controller, uint8 msgBox) {
   Isr(controller, msgBox, regs);
 }
 
+// alternate isr function shared between msgbox 0-31
 void Can_Arc_IsrL((uint8 controller) {
   FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
   uint32_t ifr = regs->IFRL;
@@ -701,6 +693,7 @@ void Can_Arc_IsrL((uint8 controller) {
   }
 }
 
+// isr function used for isr 32-63
 void Can_Arc_IsrH((uint8 controller) {
   FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
   uint32_t ifr = regs->IFRH;

@@ -5,11 +5,11 @@
 /** Enable Development Error Trace. */
 #define CAN_DEV_ERROR_DETECT          STD_ON
 /** Build version info API. */
-#define CAN_VERSION_INFO_API          STD_OFF
+#define CAN_VERSION_INFO_API          STD_ON
 /// Enable multiplexed transmission, multiple tx msgboxes per hth
-#define CAN_MULTIPLEXED_TRANSMISSION  STD_ON
+#define CAN_MULTIPLEXED_TRANSMISSION  STD_OFF // not supported, fifo must be implemented to support multiplexed transmission, see CAN402
 /// Enable cancelation of tx msgs with lower prio
-#define CAN_HW_TRANSMIT_CANCELLATION   STD_OFF
+#define CAN_HW_TRANSMIT_CANCELLATION   STD_ON
 ///  Cancellation also cancels equal prio
 #define CAN_IDENTICAL_ID_CANCELLATION  STD_OFF
 /// Max busy wait time for CAN state transition [ms]

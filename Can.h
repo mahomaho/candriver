@@ -37,11 +37,6 @@ typedef const struct
 	uint8 controller;
 	/// msgBox number used within the can controller for this hoh
 	uint8 msgBox;
-#if CAN_MULTIPLEXED_TRANSMISSION
-	/// hth parameter, defines how many msgBoxes used for multiplexed transmission
-	/// set to number of msgBoxes starting with \msgBox that will be used for multiplexed transmission. Ignored if hrh
-	uint8 numMultiplexed;
-#endif
 } CanHardwareObject;
 
 typedef const struct
