@@ -470,7 +470,12 @@ void CanIf_TxConfirmation(PduIdType canTxPduId) { // L-PDU id
 	}
 }
 
-static void RxLPduReceived(PduIdType lpdu, Can_IdType canId, uint8 canDlc, uint8* canSduPtr) {
+static void RxLPduReceived(PduIdType lpdu, Can_IdType canId, uint8 canDlc, const uint8* canSduPtr) {
+  // validate pdu mode
+  if((controllerData[CanIf_ConfigPtr->rxLpduCfg[lpdu].controller].pduMode & CANIF_GET_RX_ONLINE) == 0) {
+    // rx not online, throw message
+    return;
+  }
 	// store in buffer
 #if CANIF_PRIVATE_DLC_CHECK
 	// check if dlc check is enabled
@@ -500,7 +505,9 @@ static void RxLPduReceived(PduIdType lpdu, Can_IdType canId, uint8 canDlc, uint8
 	if(CanIf_ConfigPtr->rxLpduCfg[lpdu].user_RxIndication) {
     PduInfoType pduInfo = {
       .SduLength = canDlc,
-      .SduDataPtr = canSduPtr,
+      // cast away const qualifier
+      ///todo: should this type really be ptr to data and not to const?
+      .SduDataPtr = (uint8*)canSduPtr,
     };
 		(*CanIf_ConfigPtr->rxLpduCfg[lpdu].user_RxIndication)(CanIf_ConfigPtr->rxLpduCfg[lpdu].ulPduId, &pduInfo);
         }
@@ -508,21 +515,16 @@ static void RxLPduReceived(PduIdType lpdu, Can_IdType canId, uint8 canDlc, uint8
 
 // called by CanIf_RxIndication with info about correct hrhConfig set for CanDriverUnit
 // service id 20
-void CanIf_Arc_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc, uint8* canSduPtr, uint8 driverUnit) {
+void CanIf_Arc_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc, const uint8* canSduPtr, uint8 driverUnit) {
 	VALIDATE_NO_RV(CanIf_ConfigPtr != 0, 20, CANIF_E_UNINIT);
 	VALIDATE_NO_RV(hrh < NUM_OF_HRHS, 20, CANIF_E_PARAM_HRH);
 	VALIDATE_NO_RV(canId & 0x80000000 && canId < 0xA0000000 || canId < 0x800, 20, CANIF_E_PARAM_CANID);
 	VALIDATE_NO_RV(canDlc <= 8, 20, CANIF_E_PARAM_DLC);
 	VALIDATE_NO_RV(canSduPtr != 0, 20, CANIF_E_PARAM_POINTER);
-  // validate pdu mode
-  if((controllerData[CanIf_ConfigPtr->canIfHrhCfg[driverUnit][hrh].controller].pduMode & CANIF_GET_RX_ONLINE) == 0) {
-    // rx not online, throw message
-    return;
-  }
         int numPdus =CanIf_ConfigPtr->canIfHrhCfg[driverUnit][hrh].arrayLen;
 	if(numPdus == 0) {
 		// no filtering, lpdu id found
-                RxLPduReceived(CanIf_ConfigPtr->canIfHrhCfg[driverUnit][hrh].pduInfo.lpduId, canId, canDlc, canSduPtr);
+    RxLPduReceived(CanIf_ConfigPtr->canIfHrhCfg[driverUnit][hrh].pduInfo.lpduId, canId, canDlc, canSduPtr);
   } else {
     PduIdType *firstPduId = CanIf_ConfigPtr->canIfHrhCfg[driverUnit][hrh].pduInfo.array;
 		while(numPdus > 1) {
@@ -535,7 +537,7 @@ void CanIf_Arc_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc
 		}
 		if(CanIf_ConfigPtr->rxLpduCfg[*firstPduId].id == canId) {
 			// lpdu id found handle message
-                        RxLPduReceived(*firstPduId, canId, canDlc, canSduPtr);
+      RxLPduReceived(*firstPduId, canId, canDlc, canSduPtr);
 		}
 	}
 }

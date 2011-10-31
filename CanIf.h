@@ -42,6 +42,8 @@ Std_ReturnType CanIf_GetControllerMode(uint8 ControllerId, CanIf_ControllerModeT
 
 Std_ReturnType CanIf_Transmit(PduIdType CanTxPduId, const PduInfoType *PduInfoPtr);
 
+void CanIf_Arc_RxIndication(Can_HwHandleType hrh, Can_IdType canId, uint8 canDlc, const uint8* canSduPtr, uint8 driverUnit);
+
 #if CANIF_CANCEL_TRANSMIT_SUPPORT
 Std_ReturnType CanIf_CancelTransmit(PduIdType CanTxPduId);
 #endif

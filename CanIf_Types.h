@@ -91,8 +91,8 @@ typedef struct {
   void (*CanIf_ControllerBusOff)(uint8 Controller);
   void (*CanIf_ControllerModeIndication)(uint8 Controller, CanIf_ControllerModeType ControllerMode);
   uint8 numControllers;
-  Can_HwHandleType numHth;
-  Can_HwHandleType numHrh;
+//  Can_HwHandleType numHth;
+//  Can_HwHandleType numHrh;
   //uint8 controllerId; // canif controller id
 }CanIf_DriverUnitConfigType;
 #endif
@@ -134,7 +134,6 @@ typedef struct {
     PduIdType *array;
   }pduInfo;
   PduIdType arrayLen; // 0 means no ptr no filtering = fullCan reception
-  uint8 controller;
 } CanIf_HrHConfigType;
 
 typedef struct {
