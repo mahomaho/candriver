@@ -21,27 +21,27 @@ typedef enum {
 } Can_StateTransitionType;
 
 typedef enum {
-        /** UNINIT mode. Default mode of the CAN driver and all
-         *  CAN controllers connected to one CAN network after
-         *  power on. */
-        CANIF_CS_UNINIT = 0,
+  /** UNINIT mode. Default mode of the CAN driver and all
+   *  CAN controllers connected to one CAN network after
+   *  power on. */
+  CANIF_CS_UNINIT = 0,
 
-        /**  STOPPED mode. At least one of all CAN controllers
-         *   connected to one CAN network are halted and does
-         *   not operate on the bus. */
-        CANIF_CS_STOPPED,
+  /**  STOPPED mode. At least one of all CAN controllers
+   *   connected to one CAN network are halted and does
+   *   not operate on the bus. */
+  CANIF_CS_STOPPED,
 
-        /** STARTED mode. All CAN controllers connected to
-         *  one CAN network are started by the CAN driver and
-         *  in full-operational mode. */
-        CANIF_CS_STARTED,
+  /** STARTED mode. All CAN controllers connected to
+   *  one CAN network are started by the CAN driver and
+   *  in full-operational mode. */
+  CANIF_CS_STARTED,
 
-        /** SLEEP mode. At least one of all CAN controllers
-         *  connected to one CAN network are set into the
-         *  SLEEP mode and can be woken up by request of the
-         *  CAN driver or by a network event (must be supported
-         *  by CAN hardware) */
-        CANIF_CS_SLEEP
+  /** SLEEP mode. At least one of all CAN controllers
+   *  connected to one CAN network are set into the
+   *  SLEEP mode and can be woken up by request of the
+   *  CAN driver or by a network event (must be supported
+   *  by CAN hardware) */
+  CANIF_CS_SLEEP
 } CanIf_ControllerModeType;
 
 typedef enum {
@@ -53,7 +53,7 @@ typedef enum {
  
 typedef struct {
 	// data ptr
-        const uint8 		*sdu;
+  const uint8 		*sdu;
 	// the CAN ID, 29 or 11-bit
 	Can_IdType 	id;
 	// private data for CanIf,just save and use for callback

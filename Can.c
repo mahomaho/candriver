@@ -35,9 +35,9 @@ static inline void LockRestore(int msr) {
 //  asm volatile ("wrtee %0" : : "r" (msr) );
 }
 uint32 CountLeadingZeros(uint32 var) {
-    uint32 retval;
+  uint32 retval;
 //    asm("cntlzw %0, %1":"=r" (retval) : "r" (var));
-    return retval;
+  return retval;
 }
 
   typedef volatile struct FlexCan {
@@ -366,14 +366,12 @@ static const struct MCR mcrStoppedMode = {
   .MAXMB = CAN_NUM_MSGBOXES - 1}; // enable CAN_NUM_MSGBOXES message buffers
 
 // id 0
-void Can_Init( const Can_ConfigType *config )
-{
+void Can_Init( const Can_ConfigType *config ) {
   VALIDATE_NO_RV(Can_ConfigPtr == 0, 0, CAN_E_TRANSITION);
   VALIDATE_NO_RV(config != 0, 0, CAN_E_PARAM_POINTER);
   Can_ConfigPtr = config;
   // initialize each controller
-  for(int i = 0; i < CAN_NUM_CONTROLLERS; i++)
-  {
+  for(int i = 0; i < CAN_NUM_CONTROLLERS; i++) {
     FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[i];
     // init mcr by setting it to stopped mode = freeze mode
     regs->MCR.B = mcrStoppedMode;
@@ -428,8 +426,7 @@ void Can_Init( const Can_ConfigType *config )
 }
 
 // service id 2
-void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigType *config)
-{
+void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigType *config) {
   VALIDATE_NO_RV(Can_ConfigPtr != 0, 2, CAN_E_UNINIT);
   VALIDATE_NO_RV(config != 0, 2, CAN_E_PARAM_POINTER);
   VALIDATE_NO_RV(controller < CAN_NUM_CONTROLLERS, 2, CAN_E_PARAM_CONTROLLER);
@@ -459,8 +456,7 @@ void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigTyp
 }
 
 // service id 3
-Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType transition )
-{
+Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType transition ) {
   //validate not in CAN_UNINIT mode
   VALIDATE(Can_ConfigPtr != 0, 3, CAN_E_UNINIT);
   VALIDATE(controller < CAN_NUM_CONTROLLERS, 3, CAN_E_PARAM_CONTROLLER);
@@ -473,8 +469,7 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
   struct MCR mcr = mcrStoppedMode;
   // clear eventual pending mode change
   pendingModeChange[controller] = 0;
-  switch(transition)
-  {
+  switch(transition) {
   case CAN_T_START:
     // validate stopped mode
     VALIDATE(regs->MCR.B.FRZACK == 1, 3, CAN_E_TRANSITION);
@@ -653,33 +648,33 @@ static void Isr(uint8 controller, uint8 msgBox, FlexCanT *regs) {
 		return;
 	}
 #endif
-        // cast away volatile qualifier
-        CanIf_RxIndication(controllerData[msgBox][controller].handle, id, cs.LENGTH, (uint8*)regs->BUF[msgBox].DATA.B);
-	// read timer reg to release lock of msg box
-        uint32_t timer = regs->TIMER.R;
-        timer  = timer; // get rid of compiler warning
-        break;
+    // cast away volatile qualifier
+    CanIf_RxIndication(controllerData[msgBox][controller].handle, id, cs.LENGTH, (uint8*)regs->BUF[msgBox].DATA.B);
+    // read timer reg to release lock of msg box
+    uint32_t timer = regs->TIMER.R;
+    timer  = timer; // get rid of compiler warning
+    break;
   }
   case 0x8:
     // message transmitted
-	CanIf_TxConfirmation(controllerData[msgBox][controller].id);
-	// set PDU to -1 to indicate empty msgbox
-	controllerData[msgBox][controller].id = -1;
-	break;
+    CanIf_TxConfirmation(controllerData[msgBox][controller].id);
+    // set PDU to -1 to indicate empty msgbox
+    controllerData[msgBox][controller].id = -1;
+    break;
 #if CAN_HW_TRANSMIT_CANCELLATION
   case 0x9: {
-	// canceled transmission, call callback
-	Can_PduType pduInfo = {
-          .id = (cs.IDE)? regs->BUF[msgBox].ID.R + 0x80000000 : regs->BUF[msgBox].ID.B.STD_ID,
-          // cast away volatile qualifier
-          .sdu = (uint8*)regs->BUF[msgBox].DATA.B,
-          .swPduHandle = controllerData[msgBox][controller].id,
-          .length = cs.LENGTH
-	};
-	// set PDU to -1 to indicate empty msgbox
-	controllerData[msgBox][controller].id = -1;
-	CanIf_CancelTxConfirmation(&pduInfo);
-	break;
+    // canceled transmission, call callback
+    Can_PduType pduInfo = {
+      .id = (cs.IDE)? regs->BUF[msgBox].ID.R + 0x80000000 : regs->BUF[msgBox].ID.B.STD_ID,
+      // cast away volatile qualifier
+      .sdu = (uint8*)regs->BUF[msgBox].DATA.B,
+      .swPduHandle = controllerData[msgBox][controller].id,
+      .length = cs.LENGTH
+    };
+    // set PDU to -1 to indicate empty msgbox
+    controllerData[msgBox][controller].id = -1;
+    CanIf_CancelTxConfirmation(&pduInfo);
+    break;
   }
 #endif
   //default:
@@ -703,7 +698,7 @@ void Can_Arc_IsrL(uint8 controller) {
   int8_t msgBox;
   while((msgBox = 31 - CountLeadingZeros(ifr)) >= 0) {
     // serve the messageBox
-	Isr(controller, msgBox, regs);
+    Isr(controller, msgBox, regs);
   }
 }
 
@@ -715,7 +710,7 @@ void Can_Arc_IsrH(uint8 controller) {
   sint8 msgBox;
   while((msgBox = 63 - CountLeadingZeros(ifr)) >= 32) {
     // serve the messageBox
-	Isr(controller, msgBox, regs);
+    Isr(controller, msgBox, regs);
   }
 }
 
@@ -728,14 +723,14 @@ void Can_Arc_MainFunction_Write( uint8 controller ) {
   sint8 msgBox;
   while((msgBox = 31 - CountLeadingZeros(ifr)) >= 0) {
     // serve the messageBox
-	Isr(controller, msgBox, regs);
+    Isr(controller, msgBox, regs);
   }
 #if CAN_NUM_MSGBOXES > 32
   ifr = regs->IFRH.R;
   regs->IFRH.R = ifr & Can_ConfigPtr->controller[controller].txisrmaskH;
   while((msgBox = 63 - CountLeadingZeros(ifr)) >= 32) {
     // serve the messageBox
-	Isr(controller, msgBox, regs);
+    Isr(controller, msgBox, regs);
   }
 #endif
 }
@@ -749,14 +744,14 @@ void Can_Arc_MainFunction_Read( uint8 controller ) {
   sint8 msgBox;
   while((msgBox = 31 - CountLeadingZeros(ifr)) >= 0) {
     // serve the messageBox
-	Isr(controller, msgBox, regs);
+    Isr(controller, msgBox, regs);
   }
 #if CAN_NUM_MSGBOXES > 32
   ifr = regs->IFRH.R;
   regs->IFRH.R = ifr & Can_ConfigPtr->controller[controller].rxisrmaskH;
   while((msgBox = 63 - CountLeadingZeros(ifr)) >= 32) {
     // serve the messageBox
-	Isr(controller, msgBox, regs);
+    Isr(controller, msgBox, regs);
   }
 #endif
 }
@@ -783,23 +778,23 @@ void Can_MainFunction_Mode(void) {
   VALIDATE_NO_RV(Can_ConfigPtr != 0, 12, CAN_E_UNINIT);
   // loop over all controllers to see if there are any pending mode changes ongoing
   for(int controller = 0; controller < CAN_NUM_CONTROLLERS; controller++) {
-        FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
-        switch(pendingModeChange[controller]) {
-	case CAN_T_STOP:
-	  if(regs->MCR.B.FRZACK) {
-	    // state has changed, report to CanIf
-		CanIf_ControllerModeIndication(controller, CANIF_CS_STOPPED);
-		pendingModeChange[controller] = 0;
-	  }
-	  break;
-	case CAN_T_SLEEP:
-	  if(regs->MCR.B.LPMACK) {
-	    // state has changed, report to CanIf
-		CanIf_ControllerModeIndication(controller, CANIF_CS_SLEEP);
-		pendingModeChange[controller] = 0;
-	  }
-	  break;
-	}
+    FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
+    switch(pendingModeChange[controller]) {
+    case CAN_T_STOP:
+      if(regs->MCR.B.FRZACK) {
+        // state has changed, report to CanIf
+        CanIf_ControllerModeIndication(controller, CANIF_CS_STOPPED);
+        pendingModeChange[controller] = 0;
+      }
+      break;
+    case CAN_T_SLEEP:
+      if(regs->MCR.B.LPMACK) {
+        // state has changed, report to CanIf
+        CanIf_ControllerModeIndication(controller, CANIF_CS_SLEEP);
+        pendingModeChange[controller] = 0;
+      }
+      break;
+    }
   }
 }
 

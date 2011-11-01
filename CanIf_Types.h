@@ -101,7 +101,7 @@ typedef struct {
   /// upper layer confirmation function, set to null if no confirmation
 	void(*user_TxConfirmation)(PduIdType txPduId);
   /// can id used for transmission, msb indicates extended id
-        Can_IdType id;
+  Can_IdType id;
   /// upper layer pdu id passed to callout function
 	PduIdType ulPduId;
 	///todo what should the dlc be used for in tx lpdu object? transmit length? If so, what to do with non filled bytes? Error code?
@@ -118,7 +118,7 @@ typedef struct {
 	void(*user_RxIndication)(PduIdType rxPduId, const PduInfoType* pduInfoPtr);
   /// can id used for reception filtering
   ///todo add support for range reception
-        Can_IdType id;
+  Can_IdType id;
   /// upper layer pdu id passed to callout function
 	PduIdType ulPduId;
   /// min dlc and dlc reported to upper layers. Set to -1 to disable dlc check
@@ -151,7 +151,7 @@ typedef struct {
 	CanIf_RxLPduConfigType rxLpduCfg[CANIF_NUM_RX_LPDU_ID];
 	///todo is this really postbuild? Otherwise should this not be here
 	CanIf_ControllerConfigType controller[CANIF_CHANNEL_CNT];
-         const CanIf_HrHConfigType* canIfHrhCfg[CANIF_NUM_DRIVER_UNITS];
+   const CanIf_HrHConfigType* canIfHrhCfg[CANIF_NUM_DRIVER_UNITS];
 } CanIf_ConfigType;
 #endif /*CANIF_TYPES_H_*/
 /** @} */

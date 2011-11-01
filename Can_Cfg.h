@@ -54,9 +54,9 @@ struct FlexCan;
 
 /// Can controller base address, see ref manual for correct value
 static volatile struct FlexCan* const CAN_CONTROLLER_BASE_ADDRESS[CAN_NUM_CONTROLLERS] = {
-        [FlexCan_CAN_A] = (volatile struct FlexCan*)0x12345678,
-        [FlexCan_CAN_C] = (volatile struct FlexCan*)0x87654321,
-        [FlexCan_CAN_D] = (volatile struct FlexCan*)0x11111111
+  [FlexCan_CAN_A] = (volatile struct FlexCan*)0x12345678,
+  [FlexCan_CAN_C] = (volatile struct FlexCan*)0x87654321,
+  [FlexCan_CAN_D] = (volatile struct FlexCan*)0x11111111
 };
 	
 void Can_Arc_MainFunction_Write( uint8 controller );
