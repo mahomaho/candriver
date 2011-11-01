@@ -98,8 +98,14 @@ static CanIf_CanControllerType controllerData[CANIF_CHANNEL_CNT];
 extern const CanIf_ConfigType CanIf_config;
 extern const CanIf_DispatchCfgType canIfDispatchCfg;
 
-#define LockSave() 1
-#define LockRestore(var) var = var
+static inline int LockSave(void) {
+	int msr;
+//	asm volatile("mfmsr %[msr]":[msr] "=r" (msr ) );
+	return msr;
+}
+static inline void LockRestore(int msr) {
+//  asm volatile ("wrtee %0" : : "r" (msr) );
+}
 
 static void ClearTxBuffers(uint8 controller) {
 	// reset all pending tx requests
@@ -256,7 +262,7 @@ Std_ReturnType CanIf_Transmit(PduIdType canTxPduId,	const PduInfoType *pduInfoPt
 		.length = pduInfoPtr->SduLength
 	};
 #if CANIF_PUBLIC_TX_BUFFERING
-	bool lock = LockSave();
+	int lock = LockSave();
 	if(lPduData.txLpdu[canTxPduId].dlc != -1) {
 		// pdu buffer not empty and therefore scheduled to be sent. overwrite data and return
 		lPduData.txLpdu[canTxPduId].dlc = pduInfoPtr->SduLength;
@@ -306,7 +312,7 @@ Std_ReturnType CanIf_ReadRxPduData(PduIdType canRxPduId, PduInfoType *pduInfoPtr
     return E_NOT_OK;
   }
 	// copy data
-	bool lock = LockSave();
+	int lock = LockSave();
 	uint8 dlc = lPduData.rxLpdu[canRxPduId].dlc;
 	pduInfoPtr->SduLength = dlc;
 	memcpy(pduInfoPtr->SduDataPtr, lPduData.rxLpdu[canRxPduId].data, dlc);
@@ -351,14 +357,14 @@ Std_ReturnType CanIf_SetPduMode(uint8 controllerId, CanIf_PduSetModeType pduMode
   // check if tx set offline
   if(0 != (oldMode & CANIF_GET_TX_ONLINE) && 0 == (controllerData[controllerId].pduMode & CANIF_GET_TX_ONLINE)) {
     //clear all tx buffers
-    bool lock = LockSave();
+    int lock = LockSave();
     ClearTxBuffers(controllerId);
     LockRestore(lock);
   }
   // check if rx set offline
   if(0 != (oldMode & CANIF_GET_RX_ONLINE) && 0 == (controllerData[controllerId].pduMode & CANIF_GET_RX_ONLINE)) {
     //clear all rx buffers
-    bool lock = LockSave();
+    int lock = LockSave();
     ClearRxBuffers(controllerId);
     LockRestore(lock);
   }
@@ -439,7 +445,7 @@ void CanIf_TxConfirmation(PduIdType canTxPduId) { // L-PDU id
 	controllerData[CanIf_ConfigPtr->txLpduCfg[canTxPduId].controller].transmitConfirmedSinceLastStart = CANIF_TX_RX_NOTIFICATION;
 #endif
         Can_HwHandleType hth = CanIf_ConfigPtr->txLpduCfg[canTxPduId].hth;
-	bool lock = LockSave();
+	int lock = LockSave();
 	// send next in queue if present. Check if queue empty:
 	Can_HwHandleType lpdu = hthData.hth[hth].nextInQueue;
 	if(lpdu != -1) {
@@ -492,7 +498,7 @@ static void RxLPduReceived(PduIdType lpdu, Can_IdType canId, uint8 canDlc, const
 	}
 #endif
 #if CANIF_PUBLIC_READRXPDU_DATA_API
-	bool lock = LockSave();
+	int lock = LockSave();
 	lPduData.rxLpdu[lpdu].dlc = canDlc;
 	memcpy(lPduData.rxLpdu[lpdu].data, canSduPtr, canDlc);
 	LockRestore(lock);
@@ -549,7 +555,7 @@ void CanIf_CancelTxConfirmation(const Can_PduType* pduInfoPtr) {
 	VALIDATE_NO_RV(pduInfoPtr != 0, 21, CANIF_E_PARAM_POINTER);
 	VALIDATE_NO_RV(pduInfoPtr->swPduHandle < CANIF_NUM_TX_LPDU_ID, 21, CANIF_E_PARAM_LPDU);
 #if CANIF_PUBLIC_TX_BUFFERING
-	bool lock = LockSave();
+	int lock = LockSave();
 	if(lPduData.txLpdu[pduInfoPtr->swPduHandle].dlc != -1) {
 		// pdu buffer not empty: throw old data and return
 	} else {
@@ -585,7 +591,7 @@ void CanIf_ControllerBusOff(uint8 controller) {
 	// update pending mode
 	controllerData[controller].pendingControllerMode = CANIF_CS_STOPPED;
 	// reset all buffers
-  bool lock = LockSave();
+  int lock = LockSave();
   ClearTxBuffers(controller);
   ClearRxBuffers(controller);
   LockRestore(lock);
@@ -601,7 +607,7 @@ void CanIf_ControllerModeIndication(uint8 controller, CanIf_ControllerModeType c
 	if(controllerMode == CANIF_CS_STOPPED) {
 		// stopped mode reached
     // reset all buffers
-    bool lock = LockSave();
+    int lock = LockSave();
     ClearTxBuffers(controller);
     ClearRxBuffers(controller);
     LockRestore(lock);

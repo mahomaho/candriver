@@ -26,15 +26,19 @@
 #define DET_REPORTERROR(_x,_y,_z,_q)
 #endif
 
-#define LockSave() 1
-#define LockRestore(var) var = var
-uint8 CountLeadingZeroes(uint32 var);
-
-/** HW object Can type. Full not supported. */
-typedef enum {
-  CAN_UNINIT,
-  CAN_READY
-} Can_DriverState;
+static inline int LockSave(void) {
+	int msr;
+//	asm volatile("mfmsr %[msr]":[msr] "=r" (msr ) );
+	return msr;
+}
+static inline void LockRestore(int msr) {
+//  asm volatile ("wrtee %0" : : "r" (msr) );
+}
+uint32 CountLeadingZeros(uint32 var) {
+    uint32 retval;
+//    asm("cntlzw %0, %1":"=r" (retval) : "r" (var));
+    return retval;
+}
 
   typedef volatile struct FlexCan {
         union {
@@ -438,7 +442,7 @@ void Can_InitController( uint8 controller, const Can_ControllerBaudrateConfigTyp
     .PSEG2 = config->CanControllerSeg2,
     .PROPSEG = config->CanControllerPropSeg,
     .RJW = config->CanControllerSyncJumpWidth,
-    .PRESDIV = *CAN_CPU_CLOCK_REFERENCE / (
+    .PRESDIV = CAN_CPU_CLOCK_REFERENCE / (
       (config->CanControllerSeg1 + config->CanControllerSeg2 + config->CanControllerPropSeg + 4) *
         config->CanControllerBaudRate * 1000) - 1,
     // one sample mode, according to ISO11898? Filtering is handled by the tranceiver
@@ -477,7 +481,7 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
     // set start mode
     mcr.FRZ = 0;
     // clear eventual pending tx requests, disable interrupts to ensure no simultaneous transmit
-    bool lock = LockSave();
+    int lock = LockSave();
     for(int i = 0; i < CAN_NUM_MSGBOXES; i++) {
       if(regs->BUF[i].CS.B.CODE & 0x8) {
         // tx buffer, set it to idle and set id to -1
@@ -503,7 +507,7 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
     // set max time for state transition
     ///todo fix this
     TickType startTime;
-    GetCounterValue( 0, &startTime );
+    GetCounterValue( CAN_OS_COUNTER, &startTime );
     regs->MCR.B = mcr;
     TickType currTime;
     do {
@@ -513,7 +517,7 @@ Can_ReturnType Can_SetControllerMode( uint8 controller, Can_StateTransitionType 
         return CAN_OK;
       }
       ///todo fix this
-      GetCounterValue( 0, &currTime );
+      GetCounterValue( CAN_OS_COUNTER, &currTime );
     } while((sint32)(currTime - startTime - CAN_TIMEOUT_DURATION) < 0);
     // failed to reach stoped mode before timeout, set flag to inform Can_MainFunction_Mode to continue to poll flag
     pendingModeChange[controller] = CAN_T_STOP;
@@ -542,7 +546,7 @@ void Can_DisableControllerInterrupts( uint8 controller ) {
   VALIDATE_NO_RV(Can_ConfigPtr != 0, 4, CAN_E_UNINIT);
   VALIDATE_NO_RV(controller < CAN_NUM_CONTROLLERS, 4, CAN_E_PARAM_CONTROLLER);
   FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
-	bool lock = LockSave();
+	int lock = LockSave();
 	if(CanIsrDisableCnt[controller]++ == 0) {
 		// disable busOff isr
                 regs->CR.B.BOFFMSK = 0;
@@ -561,7 +565,7 @@ void Can_EnableControllerInterrupts( uint8 controller ) {
   VALIDATE_NO_RV(Can_ConfigPtr != 0, 5, CAN_E_UNINIT);
   VALIDATE_NO_RV(controller < CAN_NUM_CONTROLLERS, 5, CAN_E_PARAM_CONTROLLER);
   FlexCanT *regs = CAN_CONTROLLER_BASE_ADDRESS[controller];
-	bool lock = LockSave();
+	int lock = LockSave();
 	if(CanIsrDisableCnt[controller] == 0) {
 		// isrs are already enabled, do nothing
 	} else if(--CanIsrDisableCnt[controller] == 0) {
@@ -599,7 +603,7 @@ Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
   // prepare low prio search, 0 is highest prio id
 #endif
 	uint8_t msgBox = Can_ConfigPtr->hth[hth].msgBox;
-	bool lock = LockSave();
+	int lock = LockSave();
   // check if empty
   if(controllerData[msgBox][Can_ConfigPtr->hth[hth].controller].id != -1) {
     // msgbox id busy sending a frame
@@ -697,7 +701,7 @@ void Can_Arc_IsrL(uint8 controller) {
   uint32_t ifr = regs->IFRL.R;
   regs->IFRL.R = ifr;
   int8_t msgBox;
-  while((msgBox = 31 - CountLeadingZeroes(ifr)) >= 0) {
+  while((msgBox = 31 - CountLeadingZeros(ifr)) >= 0) {
     // serve the messageBox
 	Isr(controller, msgBox, regs);
   }
@@ -709,7 +713,7 @@ void Can_Arc_IsrH(uint8 controller) {
   uint32_t ifr = regs->IFRH.R;
   regs->IFRH.R = ifr;
   sint8 msgBox;
-  while((msgBox = 63 - CountLeadingZeroes(ifr)) >= 32) {
+  while((msgBox = 63 - CountLeadingZeros(ifr)) >= 32) {
     // serve the messageBox
 	Isr(controller, msgBox, regs);
   }
@@ -722,14 +726,14 @@ void Can_Arc_MainFunction_Write( uint8 controller ) {
   uint32_t ifr = regs->IFRL.R & Can_ConfigPtr->controller[controller].txisrmask;
   regs->IFRL.R = ifr;
   sint8 msgBox;
-  while((msgBox = 31 - CountLeadingZeroes(ifr)) >= 0) {
+  while((msgBox = 31 - CountLeadingZeros(ifr)) >= 0) {
     // serve the messageBox
 	Isr(controller, msgBox, regs);
   }
 #if CAN_NUM_MSGBOXES > 32
   ifr = regs->IFRH.R;
   regs->IFRH.R = ifr & Can_ConfigPtr->controller[controller].txisrmaskH;
-  while((msgBox = 63 - CountLeadingZeroes(ifr)) >= 32) {
+  while((msgBox = 63 - CountLeadingZeros(ifr)) >= 32) {
     // serve the messageBox
 	Isr(controller, msgBox, regs);
   }
@@ -743,14 +747,14 @@ void Can_Arc_MainFunction_Read( uint8 controller ) {
   uint32_t ifr = regs->IFRL.R & Can_ConfigPtr->controller[controller].rxisrmask;
   regs->IFRL.R = ifr;
   sint8 msgBox;
-  while((msgBox = 31 - CountLeadingZeroes(ifr)) >= 0) {
+  while((msgBox = 31 - CountLeadingZeros(ifr)) >= 0) {
     // serve the messageBox
 	Isr(controller, msgBox, regs);
   }
 #if CAN_NUM_MSGBOXES > 32
   ifr = regs->IFRH.R;
   regs->IFRH.R = ifr & Can_ConfigPtr->controller[controller].rxisrmaskH;
-  while((msgBox = 63 - CountLeadingZeroes(ifr)) >= 32) {
+  while((msgBox = 63 - CountLeadingZeros(ifr)) >= 32) {
     // serve the messageBox
 	Isr(controller, msgBox, regs);
   }

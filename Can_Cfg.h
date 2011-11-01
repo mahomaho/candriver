@@ -3,7 +3,7 @@
 /// set number of used msgboxes, max is 64
 #define CAN_NUM_MSGBOXES			        64
 /** Enable Development Error Trace. */
-#define CAN_DEV_ERROR_DETECT          STD_ON
+#define CAN_DEV_ERROR_DETECT          STD_OFF
 /** Build version info API. */
 #define CAN_VERSION_INFO_API          STD_ON
 /// Enable multiplexed transmission, multiple tx msgboxes per hth
@@ -12,13 +12,14 @@
 #define CAN_HW_TRANSMIT_CANCELLATION   STD_ON
 ///  Cancellation also cancels equal prio
 #define CAN_IDENTICAL_ID_CANCELLATION  STD_OFF
-/// Max busy wait time for CAN state transition [ms]
+/// Max busy wait time for CAN state transition [CAN_OS_COUNTER ticks]
 #define CAN_TIMEOUT_DURATION          100
+/// OS counter used for timeout calculation
+#define CAN_OS_COUNTER              0
 /// general CAN RX callout function, do not define to disable
 //#define CAN_LPDU_RX_CB                CanLPduReceiveCalloutFunction
-/// reference to the oscillator clock freq value
-extern uint32 oscillatorClockFreq;
-#define CAN_CPU_CLOCK_REFERENCE		  (uint32*)&oscillatorClockFreq
+/// reference clock freq used for can controller, should be set to oscillator clock freq value
+#define CAN_CPU_CLOCK_REFERENCE		  8000000
 
 /// base address for the can controller module
 void Can_Arc_Write( Can_HwHandleType hth ); // called either from Can_MainFunction_Write or isr
