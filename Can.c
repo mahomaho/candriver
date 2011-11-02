@@ -28,15 +28,16 @@
 
 static inline int LockSave(void) {
 	int msr;
-//	asm volatile("mfmsr %[msr]":[msr] "=r" (msr ) );
+	asm volatile("mfmsr %[msr]":[msr] "=r" (msr ) );
+	asm volatile("wrteei 0");
 	return msr;
 }
 static inline void LockRestore(int msr) {
-//  asm volatile ("wrtee %0" : : "r" (msr) );
+  asm volatile ("wrtee %0" : : "r" (msr) );
 }
 uint32 CountLeadingZeros(uint32 var) {
   uint32 retval;
-//    asm("cntlzw %0, %1":"=r" (retval) : "r" (var));
+    asm("cntlzw %0, %1":"=r" (retval) : "r" (var));
   return retval;
 }
 

@@ -99,11 +99,12 @@ extern const CanIf_DispatchCfgType canIfDispatchCfg;
 
 static inline int LockSave(void) {
 	int msr;
-//	asm volatile("mfmsr %[msr]":[msr] "=r" (msr ) );
+	asm volatile("mfmsr %[msr]":[msr] "=r" (msr ) );
+	asm volatile("wrteei 0");
 	return msr;
 }
 static inline void LockRestore(int msr) {
-//  asm volatile ("wrtee %0" : : "r" (msr) );
+  asm volatile ("wrtee %0" : : "r" (msr) );
 }
 
 static void ClearTxBuffers(uint8 controller) {
