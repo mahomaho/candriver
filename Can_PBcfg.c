@@ -2,6 +2,6 @@
 #include "Can.h"
 
 
-Can_ConfigType Can_config = {
+Can_ConfigType CanConfigData = {
 	
 };

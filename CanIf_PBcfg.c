@@ -2,9 +2,9 @@
 
 const CanIf_HrHConfigType canIfHrhCfg0[] = {
   [0].arrayLen = 0,
-  [0].pduInfo.lpduId = CANIF_RX_LPDU_ID_CanDB_Message_1
+  [0].pduInfo.lpduId = CANIF_PDU_ID_PDU_RX0
 };
 
-const CanIf_ConfigType CanIf_config = {
+const CanIf_ConfigType CanIf_Config = {
   .canIfHrhCfg[0] = canIfHrhCfg0
 };

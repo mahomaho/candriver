@@ -601,7 +601,7 @@ Can_ReturnType Can_Write( Can_HwHandleType hth, Can_PduType *pduInfo )
 	uint8_t msgBox = Can_ConfigPtr->hth[hth].msgBox;
 	int lock = LockSave();
   // check if empty
-  if(controllerData[msgBox][Can_ConfigPtr->hth[hth].controller].id != -1) {
+  if(controllerData[msgBox][Can_ConfigPtr->hth[hth].controller].id != (PduIdType)-1) {
     // msgbox id busy sending a frame
 #if CAN_HW_TRANSMIT_CANCELLATION
 #if CAN_IDENTICAL_ID_CANCELLATION

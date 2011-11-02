@@ -48,7 +48,7 @@ typedef enum {
 
 struct Can_ConfigType;
 //typedef const struct Can_ConfigType Can_ConfigType;
-extern const struct Can_ConfigType Can_config;
+extern const struct Can_ConfigType CanConfigData;
 
 struct FlexCan;
 

@@ -153,5 +153,8 @@ typedef struct {
 	CanIf_ControllerConfigType controller[CANIF_CHANNEL_CNT];
    const CanIf_HrHConfigType* canIfHrhCfg[CANIF_NUM_DRIVER_UNITS];
 } CanIf_ConfigType;
+
+extern const CanIf_ConfigType CanIf_Config;
+
 #endif /*CANIF_TYPES_H_*/
 /** @} */

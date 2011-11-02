@@ -94,7 +94,6 @@ static CanIf_HthDataType hthData;
 static const CanIf_ConfigType* CanIf_ConfigPtr;
 static CanIf_CanControllerType controllerData[CANIF_CHANNEL_CNT];
 
-extern const CanIf_ConfigType CanIf_config;
 extern const CanIf_DispatchCfgType canIfDispatchCfg;
 
 static inline int LockSave(void) {
@@ -144,7 +143,7 @@ static void ClearRxBuffers(uint8 controller) {
 void CanIf_Init(const CanIf_ConfigType* configPtr) {
   // nullptr means use default config
   if(configPtr == 0) {
-    configPtr = &CanIf_config;
+    configPtr = &CanIf_Config;
   }
 #if CANIF_PUBLIC_TX_BUFFERING
   for(int i  = 0; i < CANIF_NUM_TX_LPDU_ID; i++) {
@@ -228,7 +227,7 @@ static void AddTxMsgToQueue(PduIdType canTxPduId, const uint8 *sduPtr, uint8 dlc
   // add txlpdu to transmission queue in prio order
   PduIdType *pduIdPtr = &hthData.hth[CanIf_ConfigPtr->txLpduCfg[canTxPduId].hth].nextInQueue;
   // low id means high prio means high prio
-  while(*pduIdPtr != -1 &&
+  while(*pduIdPtr != (PduIdType)-1 &&
     ((*pduIdPtr < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[*pduIdPtr] : CanIf_ConfigPtr->txLpduCfg[*pduIdPtr].id) <= canId) {
     pduIdPtr = &lPduData.txLpdu[canTxPduId].nextInQueue;
   }
@@ -263,7 +262,7 @@ Std_ReturnType CanIf_Transmit(PduIdType canTxPduId,	const PduInfoType *pduInfoPt
 	};
 #if CANIF_PUBLIC_TX_BUFFERING
 	int lock = LockSave();
-	if(lPduData.txLpdu[canTxPduId].dlc != -1) {
+	if(lPduData.txLpdu[canTxPduId].dlc != (uint8)-1) {
 		// pdu buffer not empty and therefore scheduled to be sent. overwrite data and return
 		lPduData.txLpdu[canTxPduId].dlc = pduInfoPtr->SduLength;
 		memcpy(lPduData.txLpdu[canTxPduId].data, pduInfoPtr->SduDataPtr, pduInfoPtr->SduLength);
@@ -306,7 +305,7 @@ Std_ReturnType CanIf_ReadRxPduData(PduIdType canRxPduId, PduInfoType *pduInfoPtr
 	VALIDATE(pduInfoPtr != 0, 6, CANIF_E_PARAM_POINTER);
 	VALIDATE(canRxPduId < CANIF_NUM_RX_LPDU_ID, 6, CANIF_E_INVALID_RXPDUID);
   // check if buffer empty
-  if(lPduData.rxLpdu[canRxPduId].dlc == -1) {
+  if(lPduData.rxLpdu[canRxPduId].dlc == (uint8)-1) {
     // buffer empty, return error
     // this will always be reached if rx offline and or can is in stoped mode since rx buffer gets cleared when those modes are reached
     return E_NOT_OK;
@@ -447,8 +446,8 @@ void CanIf_TxConfirmation(PduIdType canTxPduId) { // L-PDU id
   Can_HwHandleType hth = CanIf_ConfigPtr->txLpduCfg[canTxPduId].hth;
 	int lock = LockSave();
 	// send next in queue if present. Check if queue empty:
-	Can_HwHandleType lpdu = hthData.hth[hth].nextInQueue;
-	if(lpdu != -1) {
+	PduIdType lpdu = hthData.hth[hth].nextInQueue;
+	if(lpdu != (PduIdType)-1) {
 		// send next
     Can_IdType canId = ((lpdu < CANIF_NUMBER_OF_DYNAMIC_CANTXPDUIDS)? lPduData.dynCanId[lpdu] : CanIf_ConfigPtr->txLpduCfg[lpdu].id);
 		Can_PduType canPdu = {
@@ -485,7 +484,7 @@ static void RxLPduReceived(PduIdType lpdu, Can_IdType canId, uint8 canDlc, const
 	// store in buffer
 #if CANIF_PRIVATE_DLC_CHECK
 	// check if dlc check is enabled
-	if(CanIf_ConfigPtr->rxLpduCfg[lpdu].dlc != -1) {
+	if(CanIf_ConfigPtr->rxLpduCfg[lpdu].dlc != (uint8)-1) {
 		// dlc check is enabled, verify dlc
 		if(canDlc < CanIf_ConfigPtr->rxLpduCfg[lpdu].dlc) {
 #if defined(USE_DEM)
@@ -556,7 +555,7 @@ void CanIf_CancelTxConfirmation(const Can_PduType* pduInfoPtr) {
 	VALIDATE_NO_RV(pduInfoPtr->swPduHandle < CANIF_NUM_TX_LPDU_ID, 21, CANIF_E_PARAM_LPDU);
 #if CANIF_PUBLIC_TX_BUFFERING
 	int lock = LockSave();
-	if(lPduData.txLpdu[pduInfoPtr->swPduHandle].dlc != -1) {
+	if(lPduData.txLpdu[pduInfoPtr->swPduHandle].dlc != (uint8)-1) {
 		// pdu buffer not empty: throw old data and return
 	} else {
 		// write data to buffer
