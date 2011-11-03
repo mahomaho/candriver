@@ -1,7 +1,6 @@
 
 #include "CanIf.h"
 #include "CanIf_Cbk.h"
-#include "Det.h"
 #if defined(USE_DEM)
 #include "Dem.h"
 #define DEM_REPORTERRORSTATUS(_a, _b) Dem_ReportErrorStatus(_a, _b)
@@ -38,10 +37,6 @@
 #define VALIDATE(_exp,_api,_err )
 #define VALIDATE_NO_RV(_exp,_api,_err )
 #define DET_REPORTERROR(_x,_y,_z,_q)
-#endif
-
-#if ( CANIF_VERSION_INFO_API == STD_ON )
-#define CanIf_GetVersionInfo(_vi) STD_GET_VERSION_INFO(_vi,CANIF)
 #endif
 
 typedef struct {

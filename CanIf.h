@@ -34,6 +34,11 @@
 #define CANIF_E_INVALID_RXPDUID 		      90
 ///}
 
+#if ( CANIF_VERSION_INFO_API == STD_ON )
+#define CanIf_GetVersionInfo(_vi) STD_GET_VERSION_INFO(_vi,CANIF)
+#endif
+
+
 void CanIf_Init(const CanIf_ConfigType* ConfigPtr);
 
 Std_ReturnType CanIf_SetControllerMode(uint8 ControllerId, CanIf_ControllerModeType ControllerMode);
