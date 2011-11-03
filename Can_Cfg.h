@@ -1,3 +1,6 @@
+#ifndef CAN_CFG_H_
+#define CAN_CFG_H_
+
 /// Enable individual mask mode, not supported by MPC5554 and MPC5553, MPC5567?
 #define CAN_ENABLE_INDIVIDUAL_MASK    STD_ON
 /// set number of used msgboxes, max is 64
@@ -80,3 +83,4 @@ static inline void Can_MainFunction_BusOff( void )
   Can_Arc_BusOff(FlexCan_CAN_C);
 }
 
+#endif // CAN_CFG_H_
