@@ -92,8 +92,8 @@ typedef struct {
 typedef struct {
 //  bool transmit;
 //  bool receive;
-  PduIdType txNPduId;
-  PduIdType rxNPduId;
+  PduIdType txLPduId;
+  PduIdType iPduId;
   uint8 addressingMode; // functional or physical
 } CanTp_TxNSduConfigType; // id för inkommande N-SDUer till PduR
 
@@ -101,7 +101,7 @@ typedef struct {
 //  bool transmit;
 //  bool receive;
   PduIdType txLPduId;
-  PduIdType IPduId;
+  PduIdType iPduId;
   uint8 addressingMode; // functional or physical
 } CanTp_RxNSduConfigType; // id för inkommande N-SDUer till PduR
 
@@ -111,9 +111,9 @@ typedef struct {
   uint8 addressingType; // normal, extended
 } CanTp_RxNPduConfigType; // id för utskickade N-SDUer från PduR
 
-typedef struct {
-  uint8 addressingMode;
-} CanTp_TxNPduConfigType; // id för utskickade N-SDUer från PduR
+//typedef struct {
+//  uint8 addressingMode;
+//} CanTp_TxNPduConfigType; // id för utskickade N-SDUer från PduR
 
 typedef struct {
 	/** General configuration paramters for the CANTP module. */
@@ -125,6 +125,7 @@ typedef struct {
 	/**  */
 	//const CanTp_RxNSduType 	*CanTpRxNSduList;
   CanTp_RxNPduConfigType rxNPduConfig[CANTP_NUM_RXNPDU];
+  CanTp_RxNSduConfigType rxNSduConfig[CANTP_NUM_RXNSDU];
 
 	/** This container contains the init parameters of the CAN Interface. */
 	//const CanTp_TxNSduType 	*CanTpTxNSduList;

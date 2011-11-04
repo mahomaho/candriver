@@ -106,13 +106,15 @@
 #define DET_REPORTERROR(_x,_y,_z,_q)
 #endif
 typedef struct {
-  uint8 *buffer;
   PduIdType nSduId; // tx/rx N-SDU id for current session, -1 if free
   PduIdType txNPduId; 
   PduIdType queueNext; // tx queue
   uint16 idx;
+  uint16 sduLength;
+  uint16 timer;
   uint8 transmit;   // 1 if tx, 0 if rx
-  uint8 tempBuf[7]; // is this needed?
+  uint8 extAddress; // 1if ext addressing = byte 0 is address, else 0
+  uint8 txBuffer[8];
 } CanTp_ChannelType; // typ för allokerad channel, separera tx/rx?
 
 typedef struct {
@@ -156,19 +158,19 @@ void CanTp_Shutdown(void) {
 
 Std_ReturnType CanTp_Transmit(PduIdType CanTpTxSduId,  const PduInfoType* CanTpTxInfoPtr) {
   // slå upp channel via txsduid
-  uint8 channel = txNSduData[CanTpTxSduId].channel;
+  sint8 channel = txNSduData[CanTpTxSduId].channel;
   if(channel != -1) {
     // channel busy, return error
     return error;
   }
   // allocate free channel
-  channel = CountLeadingZeros(channelFreeMask);
-  if(channel == 0) {
+  channel = 31 - CountLeadingZeros(channelFreeMask);
+  if(channel < 0) {
     // no free channel, return
     return error
   }
   // clear free flag
-  channelFreeMask ^= 0x80000000 >> channel;
+  channelFreeMask ^= 1 << channel;
   txNSduData[CanTpTxSduId].channel = channel;
   // start transmission
   StartToTransmit(CanTpTxSduId, CanTpTxInfoPtr, channel);
@@ -187,7 +189,7 @@ uint8 channel = txNSduData[CanTpTxSduId].channel;
     // no transmission ongoing. Cancel transmission
     txNSduData[CanTpTxSduId].channel = -1;
     // set free flag
-    channelFreeMask ^= 0x80000000 >> channel;    
+    channelFreeMask ^= 1 << channel;    
   }
 }
 
@@ -204,7 +206,7 @@ uint8 channel = rxNSduData[CanTpRxSduId].channel;
     // no transmission ongoing. Send error? Or just stop reception?
     rxNSduData[CanTpRxSduId].channel = -1;
     // set free flag
-    channelFreeMask ^= 0x80000000 >> channel;    
+    channelFreeMask ^= 1 << channel;    
   }
 }
 
@@ -215,67 +217,191 @@ void CanTp_MainFunction(void) {
   // serva timeouts
 }
 
+static void RxSingleFrame(PduIdType nSduId, uint8 *sdu, uint8 sduLen) {
+  // single frame
+  // verify length code
+  uint8 len = sdu[0] & 0xF;
+  if(len < sduLen) {
+    // invalid length code, throw message and return
+    return;
+  }
+  // cancel eventual ongoing reception
+  if(rxNSduData[nsduId].channel != -1) {
+    // cancel ongoing reception
+    rxNSduData[nsduId].channel = -1;
+    etc
+    // throw message since faulty behaviour
+    return;
+  }
+  // call upper layer to inform new tp message
+  PduLengthType avaliableLen;
+  BufReq_ReturnType retVal = PduR_CanTpStartOfReception(CanTp_ConfigPtr->rxNSduConfig[nsduId].iPduId, len, &avaliableLen);
+  if(retVal != BUFREQ_E_OK || avaliableLen < len) {
+    // failed to allocate buffer for the whole message, throw message and return
+    return;
+  }
+  // copy data to UL buffer
+  PduInfoType pduInfo = {
+    .SduDataPtr = &sdu[1],
+    .SduLength = sduLen - 1
+  };
+  // copy data
+  retVal = PduR_CanTpCopyRxData(CanTp_ConfigPtr->rxNSduConfig[nsduId].iPduId, &pduInfo, avaliableLen);
+  if(retVal != BUFREQ_OK) {
+    // failed to copy data, inform UL about failed reception
+    PduR_CanTpRxIndication(CanTp_ConfigPtr->rxNSduConfig[nsduId].iPduId, NTFRSLT_E_NO_BUFFER);
+    return;
+  }
+  // inform UL about successfull reception
+  PduR_CanTpRxIndication(CanTp_ConfigPtr->rxNSduConfig[nsduId].iPduId, NTFRSLT_OK);
+}
+
+void RxFirstFrame(PduIdType nSduId, uint8 *sdu, uint8 sduLen) {
+  // verify that no reception ongoing
+  uint16 len = (sdu[0] & 0xF) * 256 + sdu[1];
+  if(len <= sduLen) {
+    // invalid length code, throw message and return
+    return;
+  }
+  // cancel eventual ongoing reception
+  if(rxNSduData[nsduId].channel != -1) {
+    // cancel ongoing reception
+    rxNSduData[nsduId].channel = -1;
+    etc
+    // throw message since faulty behaviour
+    return;
+  }
+  // get free channel
+  sint8 channel = 31 - CountLeadingZeros(channelFreeMask);
+  if(channel < 0) {
+    // no free channel, ignore frame and return
+    return;
+  }
+  // clear free flag
+  channelFreeMask ^= 1 << channel;
+  // store channel in sdu data
+  rxNSduData[nsduId].channel = channel;
+  // init channel data
+  channelData[channel].sduLength = len;
+  channelData[channel].idx = 0;
+  channelData[channel].nSduId = nsduId;
+  channelData[channel].transmit = 0;
+  channelData[channel].timer = rätt timeout
+  /*channelData[channel].
+  channelData[channel].
+  PduIdType nSduId; // tx/rx N-SDU id for current session, -1 if free
+  PduIdType txNPduId; 
+  PduIdType queueNext; // tx queue
+  uint16 idx;
+  uint16 sduLength;
+  uint16 timer;
+  uint8 transmit;   // 1 if tx, 0 if rx
+  uint8 extAddress; // 1if ext addressing = byte 0 is address, else 0
+  uint8 txBuffer[8]; */
+ ///\todo flytta nedan till main funktionen istället?
+  // report reception start to UL
+  PduLengthType avaliableLen;
+  BufReq_ReturnType retVal = PduR_CanTpStartOfReception(CanTp_ConfigPtr->rxNSduConfig[nsduId].iPduId, len, &avaliableLen);
+  if(retVal != ..) {
+    // failed to allocate rx buffer
+    ///\todo what to do if not enough room for first frame
+  }
+  // copy data to UL buffer
+  PduInfoType pduInfo = {
+    .SduDataPtr = sdu + 2,
+    .SduLength = sduLen - 2
+  };
+  // copy data
+  retVal = PduR_CanTpCopyRxData(CanTp_ConfigPtr->rxNSduConfig[nsduId].iPduId, &pduInfo, avaliableLen);
+  if(retVal != BUFREQ_OK) {
+    // failed to copy data, inform UL about failed reception
+    PduR_CanTpRxIndication(CanTp_ConfigPtr->rxNSduConfig[nsduId].iPduId, NTFRSLT_E_NO_BUFFER);
+    return;
+  }
+  // transmit flow control message
+  
+}
+
+void RxConsecutiveFrame(PduIdType nSduId, uint8 *sdu, uint8 sduLen) {
+  sint8 channel = rxNSduData[nsduId].channel;
+  if(channel < 0) {
+    // no ongoing reception, throw message and return
+    return;
+  }
+  // verify löpnummer
+  if(channelData[channel].löpnummer == sdu[0] & 0xF) {
+    // frame already received
+    ///\todo how to handle this?
+    return;
+  }
+  channelData[channel].löpnummer = (channelData[channel].löpnummer + 1) & 0xF;
+  if(channelData[channel].löpnummer != sdu[0] & 0xF) {
+    // wrong löpnummer
+    ///\todo how to handle this?
+    return;
+  }
+  // copy data
+  retVal = PduR_CanTpCopyRxData(CanTp_ConfigPtr->rxNSduConfig[nsduId].iPduId, &pduInfo, avaliableLen);
+  if(retVal != BUFREQ_OK) {
+    // failed to copy data, inform UL about failed reception
+    PduR_CanTpRxIndication(CanTp_ConfigPtr->rxNSduConfig[nsduId].iPduId, NTFRSLT_E_NO_BUFFER);
+    return;
+  }
+  channelData[channel].idx += sduLen-1;
+  if(channelData[channel].idx == channelData[channel].sduLen) {
+    // tp frame received, inform UL
+    todo
+    return;
+  }
+  channelData[channel].blockSize--;
+  if(channelData[channel].blockSize == 0) {
+    // send new flow control
+  }
+}
+
+void RxFlowCtrlFrame(PduIdType nSduId, uint8 *sdu, uint8 sduLen) {
+  
+}
+
 void CanTp_RxIndication( PduIdType RxPduId, PduInfoType* PduInfoPtr) {
   // slå upp typ av addressing mode för att veta om data är del av address eller inte
 //  uint8 control;
+  PduIdType sduId;
+  const uint8 *sdu;
+  uint8 sduLen;
   if(CanTp_ConfigPtr->rxNPduConfig[RxPduId].addressingType != EXTENDED_ADDRESSING) {
-    // slå upp N-SDU via PduInfoPtr->SduDataPtr[0]
-//    control = PduInfoPtr->SduDataPtr[1];
+    ///\todo slå upp nsdu på PduInfoPtr->SduDataPtr[0]
+    sduLen = PduInfoPtr->SduLength-1;
+    sdu = PduInfoPtr->SduDataPtr+1;
+    sduId = CanTp_ConfigPtr->rxNPduConfig[RxPduId].rxNSduId;
   } else {
 //    control = PduInfoPtr->SduDataPtr[0];
-    switch(PduInfoPtr->SduDataPtr[0] >> 4) {
-    case 0: // single frame
-      // verify length code
-      uint8 len = PduInfoPtr->SduDataPtr[0] & 0xF;
-      if(len < PduInfoPtr->SduLength) {
-        // invalid length code, throw message and return
-        return;
-      }
-      // cancel eventual ongoing reception
-      PduIdType nsduId = CanTp_ConfigPtr->rxNPduConfig[RxPduId].rxNSduId;
-      if(rxNSduData[nsduId].channel != -1) {
-        // cancel reception
-      }
-      // call upper layer to inform new tp message
-      PduLengthType avaliableLen;
-      BufReq_ReturnType retVal = PduR_CanTpStartOfReception(nsduId, len, &avaliableLen);
-      if(retVal != BUFREQ_E_OK || avaliableLen < len) {
-        // failed to allocate buffer for the whole message, throw message and return
-        return;
-      }
-      // copy data to UL buffer
-      PduInfoType pduInfo = {
-        .SduDataPtr = &PduInfoPtr->SduDataPtr[1],
-        .SduLength = PduInfoPtr->SduLength - 1
-      };
-      // copy data
-      retVal = PduR_CanTpCopyRxData(nsduId, &pduInfo, avaliableLen);
-      if(retVal != BUFREQ_OK) {
-        // failed to copy data, inform UL about failed reception
-        PduR_CanTpRxIndication(nsduId, NTFRSLT_E_NO_BUFFER);
-        return;
-      }
-      // inform UL about successfull reception
-      PduR_CanTpRxIndication(nsduId, NTFRSLT_OK);
+    sduLen = PduInfoPtr->SduLength;
+    sdu = PduInfoPtr->SduDataPtr;
+    sduId = CanTp_ConfigPtr->rxNPduConfig[RxPduId].rxNSduId;
+  }
+  switch(sdu[0] >> 4) {
+  case 0: 
+    RxSingleFrame(sduId, sdu, sduLen);
+    break;
+  case 1: // first frame
+    // verify length
+    if(PduInfoPtr->SduLength != 8) {
+      // first frame must be a full can frame, throw message
       break;
-    case 1: // first frame
-      // kolla så att channel inte är allokerad. Allokera channel och skicka till channel
-      // kolla att channel inte allokerad. Skicka till rxNsdu
-      // allocate channel
-      rxNSduData[CanTp_ConfigPtr->rxNPduConfig[RxPduId].rxNSduId].channel = ;
-      FirstFrameReceived(CanTp_ConfigPtr->rxNPduConfig[RxPduId].rxNSduId].channel, &PduInfoPtr->SduDataPtr[0], PduInfoPtr->length);
-      break;
-    case 2: // consecutive frame
-      // slå upp channel via txNpduId, skicka till channel
-      ConsecutiveFrameReceived(CanTp_ConfigPtr->rxNPduConfig[RxPduId].rxNSduId].channel, &PduInfoPtr->SduDataPtr[0], PduInfoPtr->length);
-      break;
-    case 3: // flow control frame
-      // slå upp channel via rxNsduId, skicka till channel
-      FlowCtrlFrameReceived(CanTp_ConfigPtr->rxNPduConfig[RxPduId].txNSduId].channel, &PduInfoPtr->SduDataPtr[0], PduInfoPtr->length);
-      break;
-    default:
-      // ignore frame
     }
+    RxFirstFrame(sduId, sdu, sduLen);
+    break;
+  case 2: // consecutive frame
+    // slå upp channel via txNpduId, skicka till channel
+    RxConsecutiveFrame(sduId, sdu, sduLen);
+    break;
+  case 3: // flow control frame
+    // slå upp channel via rxNsduId, skicka till channel
+    RxFlowCtrlFrame(sduId, sdu, sduLen);
+    break;
+  default:
+    // ignore frame
   }
 }
 
