@@ -35,7 +35,7 @@ static inline int LockSave(void) {
 static inline void LockRestore(int msr) {
   asm volatile ("wrtee %0" : : "r" (msr) );
 }
-uint32 CountLeadingZeros(uint32 var) {
+static inline uint32 CountLeadingZeros(uint32 var) {
   uint32 retval;
     asm("cntlzw %0, %1":"=r" (retval) : "r" (var));
   return retval;

@@ -94,7 +94,7 @@ typedef struct {
 //  bool receive;
   PduIdType txNPduId;
   PduIdType rxNPduId;
-  uint8 addressingMode;
+  uint8 addressingMode; // functional or physical
 } CanTp_TxNSduConfigType; // id för inkommande N-SDUer till PduR
 
 typedef struct {
@@ -102,13 +102,13 @@ typedef struct {
 //  bool receive;
   PduIdType txLPduId;
   PduIdType IPduId;
-  uint8 addressingMode;
+  uint8 addressingMode; // functional or physical
 } CanTp_RxNSduConfigType; // id för inkommande N-SDUer till PduR
 
 typedef struct {
   PduIdType rxNSduId; // sätt till -1 om ingen rx
   PduIdType txNSduId; // sätt till -1 om ingen tx
-  uint8 addressingMode;
+  uint8 addressingType; // normal, extended
 } CanTp_RxNPduConfigType; // id för utskickade N-SDUer från PduR
 
 typedef struct {

@@ -108,6 +108,7 @@
 typedef struct {
   uint8 *buffer;
   PduIdType nSduId; // tx/rx N-SDU id for current session, -1 if free
+  PduIdType txNPduId; 
   PduIdType queueNext; // tx queue
   uint16 idx;
   uint8 transmit;   // 1 if tx, 0 if rx
@@ -126,8 +127,25 @@ typedef struct {
 
 static CanTp_ChannelType channelData[CANTP_NUM_CHANNELS];
 static CanTp_NSduType rxNSduData[CANTP_NUM_RXNSDU];
+static CanTp_NSduType txNSduData[CANTP_NUM_TXNSDU];
 static const CanTp_ConfigType* CanTp_ConfigPtr;
 static CanTp_TxNPduType txNPduData[CANTP_NUM_TXNPDU];
+static uint32 channelFreeMask = (1 << CANTP_NUM_CHANNELS) - 1;
+
+static inline int LockSave(void) {
+	int msr;
+	asm volatile("mfmsr %[msr]":[msr] "=r" (msr ) );
+	asm volatile("wrteei 0");
+	return msr;
+}
+static inline void LockRestore(int msr) {
+  asm volatile ("wrtee %0" : : "r" (msr) );
+}
+static inline uint32 CountLeadingZeros(uint32 var) {
+  uint32 retval;
+    asm("cntlzw %0, %1":"=r" (retval) : "r" (var));
+  return retval;
+}
 
 void CanTp_Init(const CanTp_ConfigType* CfgPtr)  {
 }
@@ -138,15 +156,56 @@ void CanTp_Shutdown(void) {
 
 Std_ReturnType CanTp_Transmit(PduIdType CanTpTxSduId,  const PduInfoType* CanTpTxInfoPtr) {
   // slå upp channel via txsduid
-  // skicka data
+  uint8 channel = txNSduData[CanTpTxSduId].channel;
+  if(channel != -1) {
+    // channel busy, return error
+    return error;
+  }
+  // allocate free channel
+  channel = CountLeadingZeros(channelFreeMask);
+  if(channel == 0) {
+    // no free channel, return
+    return error
+  }
+  // clear free flag
+  channelFreeMask ^= 0x80000000 >> channel;
+  txNSduData[CanTpTxSduId].channel = channel;
+  // start transmission
+  StartToTransmit(CanTpTxSduId, CanTpTxInfoPtr, channel);
 }
 
 Std_ReturnType CanTp_CancelTransmitRequest(PduIdType CanTpTxSduId) {
-  // allokera tx channel, anropa upper layer för att få data att skicka
+uint8 channel = txNSduData[CanTpTxSduId].channel;
+  if(channel == -1) {
+    // no transmission ongoing, return
+    return ok;
+  } else if(channelData[channel].transmitOngoing) {
+    // transmit of npdu ongoing. Set flag to cancel transmission of nsdu when transmit done
+    channelData[channel].cancel = 1;
+    return ok;
+  } else {
+    // no transmission ongoing. Cancel transmission
+    txNSduData[CanTpTxSduId].channel = -1;
+    // set free flag
+    channelFreeMask ^= 0x80000000 >> channel;    
+  }
 }
 
 Std_ReturnType CanTp_CancelReceiveRequest(PduIdType CanTpRxSduId) {
-  // fria channel
+uint8 channel = rxNSduData[CanTpRxSduId].channel;
+  if(channel == -1) {
+    // no reception ongoing, return
+    return ok;
+  } else if(channelData[channel].transmitOngoing) {
+    // transmit of npdu ongoing. Set flag to cancel transmission of nsdu when transmit done
+    channelData[channel].cancel = 1;
+    return ok;
+  } else {
+    // no transmission ongoing. Send error? Or just stop reception?
+    rxNSduData[CanTpRxSduId].channel = -1;
+    // set free flag
+    channelFreeMask ^= 0x80000000 >> channel;    
+  }
 }
 
 Std_ReturnType CanTp_ChangeParameterRequest(PduIdType id, TPParameterType parameter, uint16 value) {
@@ -159,20 +218,51 @@ void CanTp_MainFunction(void) {
 void CanTp_RxIndication( PduIdType RxPduId, PduInfoType* PduInfoPtr) {
   // slå upp typ av addressing mode för att veta om data är del av address eller inte
 //  uint8 control;
-  if(CanTp_ConfigPtr->rxNPduConfig[RxPduId].addressingMode != EXTENDED_ADDRESSING) {
+  if(CanTp_ConfigPtr->rxNPduConfig[RxPduId].addressingType != EXTENDED_ADDRESSING) {
     // slå upp N-SDU via PduInfoPtr->SduDataPtr[0]
 //    control = PduInfoPtr->SduDataPtr[1];
   } else {
 //    control = PduInfoPtr->SduDataPtr[0];
     switch(PduInfoPtr->SduDataPtr[0] >> 4) {
     case 0: // single frame
-      // kolla att channel inte allokerad. Skicka till rxNsdu
-      // allocate channel
-      rxNSduData[CanTp_ConfigPtr->rxNPduConfig[RxPduId].rxNSduId].channel = ;
-      SingleFrameReceived(channel, &PduInfoPtr->SduDataPtr[0], PduInfoPtr->length);
+      // verify length code
+      uint8 len = PduInfoPtr->SduDataPtr[0] & 0xF;
+      if(len < PduInfoPtr->SduLength) {
+        // invalid length code, throw message and return
+        return;
+      }
+      // cancel eventual ongoing reception
+      PduIdType nsduId = CanTp_ConfigPtr->rxNPduConfig[RxPduId].rxNSduId;
+      if(rxNSduData[nsduId].channel != -1) {
+        // cancel reception
+      }
+      // call upper layer to inform new tp message
+      PduLengthType avaliableLen;
+      BufReq_ReturnType retVal = PduR_CanTpStartOfReception(nsduId, len, &avaliableLen);
+      if(retVal != BUFREQ_E_OK || avaliableLen < len) {
+        // failed to allocate buffer for the whole message, throw message and return
+        return;
+      }
+      // copy data to UL buffer
+      PduInfoType pduInfo = {
+        .SduDataPtr = &PduInfoPtr->SduDataPtr[1],
+        .SduLength = PduInfoPtr->SduLength - 1
+      };
+      // copy data
+      retVal = PduR_CanTpCopyRxData(nsduId, &pduInfo, avaliableLen);
+      if(retVal != BUFREQ_OK) {
+        // failed to copy data, inform UL about failed reception
+        PduR_CanTpRxIndication(nsduId, NTFRSLT_E_NO_BUFFER);
+        return;
+      }
+      // inform UL about successfull reception
+      PduR_CanTpRxIndication(nsduId, NTFRSLT_OK);
       break;
     case 1: // first frame
       // kolla så att channel inte är allokerad. Allokera channel och skicka till channel
+      // kolla att channel inte allokerad. Skicka till rxNsdu
+      // allocate channel
+      rxNSduData[CanTp_ConfigPtr->rxNPduConfig[RxPduId].rxNSduId].channel = ;
       FirstFrameReceived(CanTp_ConfigPtr->rxNPduConfig[RxPduId].rxNSduId].channel, &PduInfoPtr->SduDataPtr[0], PduInfoPtr->length);
       break;
     case 2: // consecutive frame
@@ -195,9 +285,9 @@ void CanTp_TxConfirmation(PduIdType TxPduId) {
   txNPduData[TxPduId].queueHead = channelData[channel].next;
   if(txNPduData[TxPduId].queueHead != -1) {
     // queue not empty, send next
-    CanIf_Transmit(
-  TxConfirm(txNPduData[TxPduId].queueHead);
-  
+    CanIf_Transmit(channelData[txNPduData[TxPduId].queueHead].txNPduId, ...);
+  }
+  TxConfirm(channel);
 }
 
 
